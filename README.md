@@ -1,24 +1,72 @@
+<div align="center">
+
 # Pulse
 
-A health-coaching dashboard built around a Gadgetbridge SQLite export. A
-read-only Next.js dashboard reads insights produced by a local-LLM coach
-pipeline running over phone-synced wearable data.
+**A health-coaching dashboard built around a Gadgetbridge SQLite export.**
 
-> **Status:** personal reference implementation, source-available.
-> Published for reading and study, not as a turnkey product. See
+A read-only Next.js dashboard reads insights produced by a local-LLM
+coach pipeline over phone-synced wearable data.
+
+<br/>
+
+[![Status: Experimental](https://img.shields.io/badge/status-experimental-orange?style=for-the-badge)](#limitations)
+[![License: Source-Available](https://img.shields.io/badge/license-source--available-blue?style=for-the-badge)](COPYRIGHT.md)
+[![Local-First](https://img.shields.io/badge/data-local--first-success?style=for-the-badge)](#architecture)
+
+<br/>
+
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=000)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tailwind v4](https://img.shields.io/badge/Tailwind-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Node 22](https://img.shields.io/badge/Node-22-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Ollama](https://img.shields.io/badge/Ollama-qwen3.6-000?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com)
+[![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Docker](https://img.shields.io/badge/Docker-runner-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
+
+<br/>
+
+**[Setup](docs/SETUP.md)** · **[Pipeline](docs/COACH_PLAN.md)** · **[Deployment](deploy/README.md)** · **[Schema](docs/gadgetbridge-schema/)** · **[License](COPYRIGHT.md)**
+
+</div>
+
+---
+
+> [!IMPORTANT]
+> **Personal reference implementation, source-available.** Published for
+> reading and study, not as a turnkey product. See
 > [COPYRIGHT.md](COPYRIGHT.md) for usage terms. Building this for
 > yourself today requires porting the SQL layer, the LLM prompts, and
 > the timezone code.
->
-> **Verified scope:**
-> | What | Tested with |
-> |---|---|
-> | Watch | Huawei Watch GT 5 Pro (firmware `6.0.0.23(SP10C00M06)`) |
-> | LLM   | Ollama with `qwen3.6:latest` (batch) + `ministral-3:3b` (interactive) |
-> | Language | German prompts + UI (output, abstain text, S1 safety strings) |
-> | Timezone | Europe/Berlin (wake-window math is timezone-coupled) |
-> | Mac    | Apple Silicon, ≥16 GB RAM (qwen3.6 inference needs ~15 GB free) |
-> | Pi     | Raspberry Pi 4/5 running Raspbian 12, Node 22 |
+
+### Highlights
+
+- **Local-first by design.** Every byte of biometric data stays on your
+  hardware. The runner calls Ollama on `localhost`; nothing reaches an
+  external API.
+- **Deterministic where it counts, LLM where it pays.** Facts + rules +
+  verifier are pure code. Prose generation, evidence selection, and
+  coaching trajectories are the only LLM-driven stages. A 5-layer
+  verifier hard-fails on safety drift before any output reaches the UI.
+- **Split deployment baked in.** Mac runs the full stack (runner +
+  Ollama + dashboard). Raspberry Pi serves the dashboard read-only over
+  Syncthing-replicated JSON insights. The Pi never calls the model.
+- **Atomic writes only.** Insights stream through a staging dir then
+  atomic-rename into place, so Syncthing never picks half-files even
+  mid-write.
+
+### Verified scope
+
+| What | Tested with |
+|---|---|
+| Watch | Huawei Watch GT 5 Pro (firmware `6.0.0.23(SP10C00M06)`) |
+| LLM   | Ollama · `qwen3.6:latest` (batch) + `ministral-3:3b` (interactive) |
+| Language | German prompts + UI (output, abstain text, S1 safety strings) |
+| Timezone | Europe/Berlin (wake-window math is timezone-coupled) |
+| Mac    | Apple Silicon, ≥16 GB RAM (qwen3.6 inference needs ~15 GB free) |
+| Pi     | Raspberry Pi 4/5 running Raspbian 12, Node 22 |
+
+---
 
 ## What it does
 
@@ -37,6 +85,8 @@ pipeline running over phone-synced wearable data.
 The runner pipeline runs locally — no insights ever leave the host. The
 Pi dashboard serves the resulting JSON statically; only on-demand routes
 (`/api/explain-anomaly`, `/api/ingest-screenshot`) call back to Ollama.
+
+---
 
 ## Architecture
 
@@ -68,6 +118,8 @@ Pi dashboard serves the resulting JSON statically; only on-demand routes
 Single-machine variant (no Pi) collapses both rows onto the Mac — see
 [docs/SETUP.md](docs/SETUP.md).
 
+---
+
 ## Prerequisites
 
 **Hardware:**
@@ -93,6 +145,8 @@ Single-machine variant (no Pi) collapses both rows onto the Mac — see
 - [Gadgetbridge](https://gadgetbridge.org) paired with your watch.
 - Enable **Settings → Data management → Auto-export** to a Syncthing-watched
   folder.
+
+---
 
 ## Setup
 
@@ -134,6 +188,8 @@ For production: the runner runs as a Docker service via launchd on the
 Mac; the dashboard runs as a systemd service on the Pi. Templates under
 `deploy/*.template`.
 
+---
+
 ## Daily commands
 
 ```bash
@@ -154,6 +210,8 @@ npx tsx src/index.ts daily-finalize-loop      # long-running, --lookback N days
 npx tsx src/index.ts backfill --days=30       # rerun missing days
 npm run test                                  # vitest run
 ```
+
+---
 
 ## Repo layout
 
@@ -227,6 +285,8 @@ $PULSE_ROOT/
     └── alarm_state.json
 ```
 
+---
+
 ## Environment variables
 
 All resolution is env-driven, no hardcoded paths:
@@ -248,6 +308,8 @@ All resolution is env-driven, no hardcoded paths:
 Web Push keys are generated once with `npx web-push generate-vapid-keys
 --json`.
 
+---
+
 ## How the pipeline works
 
 The daily v2 pipeline runs in 7 stages plus a weekly recap. Stages 0, 1,
@@ -258,6 +320,8 @@ deterministic stub before write rather than relativised.
 
 See [docs/COACH_PLAN.md](docs/COACH_PLAN.md) for the stage-by-stage
 detail.
+
+---
 
 ## Operating rules
 
@@ -295,12 +359,16 @@ are repeated in [CLAUDE.md](CLAUDE.md) for tool-side enforcement.
     (verified against workout-summary km). Do not apply a `/100`
     divisor.
 
+---
+
 ## Stack
 
 Next.js 16 · React 19 · TypeScript · Tailwind v4 · motion · Recharts ·
 react-leaflet · better-sqlite3 · undici · ajv · chokidar · zod · Radix
 primitives · next-themes · web-push · vitest · Ollama (qwen3.6,
 ministral-3).
+
+---
 
 ## Limitations
 
@@ -320,6 +388,8 @@ ministral-3).
   (Apple Silicon). Linux/AMD64 builds work but haven't been validated
   for Ollama throughput.
 
+---
+
 ## Read next
 
 - [docs/SETUP.md](docs/SETUP.md) — linear setup walkthrough
@@ -329,6 +399,8 @@ ministral-3).
   reference (per-domain)
 - [docs/PLAN.md](docs/PLAN.md) — UI / IA design language
 - [CLAUDE.md](CLAUDE.md) — repository constraints + invariants
+
+---
 
 ## License
 
