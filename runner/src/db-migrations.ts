@@ -560,63 +560,27 @@ const MIGRATIONS: readonly Migration[] = [
   {
     id: "M011_meal_lease",
     sql: `
-      -- ── Meal processing as a durable queue ──────────────────────────────
-      -- Adds 'processing' to the status enum + leased_at + error_reason so
-      -- pulse.db can act as the meal-classify work queue. The Mac runner
-      -- atomically transitions pending→processing under a lease, runs the
-      -- pipeline, then transitions to classified or failed. Stale leases
-      -- (runner crashed mid-flight) get swept back to failed with reason
-      -- 'lease_expired' after a TTL.
+      -- ── Meal classify queue ─────────────────────────────────────────────
+      -- Adds two columns to PULSE_MEAL so the row itself can act as the
+      -- work queue without needing an extra status value:
+      --   leased_at      — when set, a runner currently owns this meal
+      --                    (status='pending' AND leased_at IS NOT NULL is
+      --                    the "processing" state). NULL = available.
+      --   error_reason   — terminal failure text surfaced on status='failed'.
       --
-      -- SQLite CHECK constraints can't be altered in place, so we rebuild
-      -- the table. defer_foreign_keys=1 keeps child FK references valid
-      -- across DROP+RENAME inside this single migration transaction.
-      PRAGMA defer_foreign_keys = 1;
+      -- ADD COLUMN is non-destructive: no table rebuild, so the existing
+      -- ON DELETE CASCADE FKs from PULSE_MEAL_COMPONENT / _PHOTO / _REVISION
+      -- never fire. An earlier draft of this migration rebuilt the table
+      -- and cascade-deleted every child row — don't go back to that shape.
+      ALTER TABLE PULSE_MEAL ADD COLUMN leased_at TEXT;
+      ALTER TABLE PULSE_MEAL ADD COLUMN error_reason TEXT;
 
-      CREATE TABLE PULSE_MEAL_new (
-        id TEXT PRIMARY KEY,
-        user_meal_at TEXT NOT NULL,
-        period_key TEXT NOT NULL,
-        photo_path TEXT,
-        photo_mime TEXT,
-        user_text TEXT,
-        notes TEXT,
-        status TEXT NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending','processing','classified','edited','failed')),
-        source TEXT NOT NULL
-          CHECK (source IN ('photo','photo+text','text','manual')),
-        kind TEXT NOT NULL DEFAULT 'snack'
-          CHECK (kind IN ('breakfast','lunch','dinner','snack','drink')),
-        classified_at TEXT,
-        edited_at TEXT,
-        totals_json TEXT NOT NULL DEFAULT '{}',
-        leased_at TEXT,
-        error_reason TEXT,
-        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-      );
-
-      INSERT INTO PULSE_MEAL_new
-        (id, user_meal_at, period_key, photo_path, photo_mime, user_text, notes,
-         status, source, kind, classified_at, edited_at, totals_json,
-         leased_at, error_reason, created_at)
-      SELECT
-        id, user_meal_at, period_key, photo_path, photo_mime, user_text, notes,
-        status, source, kind, classified_at, edited_at, totals_json,
-        NULL, NULL, created_at
-      FROM PULSE_MEAL;
-
-      DROP TABLE PULSE_MEAL;
-      ALTER TABLE PULSE_MEAL_new RENAME TO PULSE_MEAL;
-
-      CREATE INDEX IF NOT EXISTS idx_pulse_meal_period
-        ON PULSE_MEAL(period_key, user_meal_at);
-      CREATE INDEX IF NOT EXISTS idx_pulse_meal_time
-        ON PULSE_MEAL(user_meal_at DESC);
-      -- Queue index: oldest pending or processing first, used by the runner's
-      -- reconcile tick and the stale-lease sweep.
+      -- Queue index: cheap scan for oldest available meals + the stale-lease
+      -- sweep. Partial-index predicate matches the runner's read filter so
+      -- the index covers the hot path exactly.
       CREATE INDEX IF NOT EXISTS idx_pulse_meal_queue
-        ON PULSE_MEAL(status, user_meal_at)
-        WHERE status IN ('pending','processing');
+        ON PULSE_MEAL(user_meal_at)
+        WHERE status = 'pending';
     `,
   },
 ];

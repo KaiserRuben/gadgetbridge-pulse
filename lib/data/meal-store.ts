@@ -258,7 +258,11 @@ export interface PendingMealForRunner {
   user_meal_at: string;
   user_text: string | null;
   notes: string | null;
-  status: Extract<MealStatus, "pending" | "processing">;
+  /**
+   * `leased_at IS NOT NULL` is the on-the-wire signal that a runner is
+   * actively processing this meal. The runner reads it after a successful
+   * claim to detect a race where the row was already taken.
+   */
   leased_at: string | null;
   photos: Array<{
     ord: number;
@@ -269,11 +273,11 @@ export interface PendingMealForRunner {
 }
 
 /**
- * Queue read for the runner. Returns oldest-pending-first up to `limit`,
- * each row joined with its photos[]. `status='processing'` rows are
- * deliberately excluded — the runner gets them via a successful claim,
- * not via this list, so re-reading the queue never re-emits an in-flight
- * meal.
+ * Queue read for the runner. Returns oldest-first up to `limit`, each row
+ * joined with its photos[]. Already-leased meals are excluded — the runner
+ * only sees rows it can actually claim. A leased meal stays in `pending`
+ * until it either completes (→ classified) or fails (→ failed); the stale-
+ * lease sweep is what surfaces a crashed claim back to the dashboard.
  */
 export function listPendingForRunner(limit = 16): PendingMealForRunner[] {
   const db = pulseDb();
@@ -286,12 +290,11 @@ export function listPendingForRunner(limit = 16): PendingMealForRunner[] {
         period_key: string;
         user_text: string | null;
         notes: string | null;
-        status: "pending" | "processing";
         leased_at: string | null;
       }>(
-        `SELECT id, user_meal_at, period_key, user_text, notes, status, leased_at
+        `SELECT id, user_meal_at, period_key, user_text, notes, leased_at
          FROM PULSE_MEAL
-         WHERE status = 'pending'
+         WHERE status = 'pending' AND leased_at IS NULL
          ORDER BY user_meal_at
          LIMIT ?`,
       )
@@ -304,7 +307,6 @@ export function listPendingForRunner(limit = 16): PendingMealForRunner[] {
       user_meal_at: r.user_meal_at,
       user_text: r.user_text,
       notes: r.notes,
-      status: r.status,
       leased_at: r.leased_at,
       photos: photos
         .filter((p) => p.meal_id === r.id)
@@ -318,8 +320,8 @@ export function listPendingForRunner(limit = 16): PendingMealForRunner[] {
 
 /**
  * Single-row variant of `listPendingForRunner` — used by the claim route to
- * hand back the just-claimed meal (now in `processing`) without forcing the
- * runner to do a follow-up GET.
+ * hand back the just-claimed (now leased) meal without forcing the runner
+ * to do a follow-up GET.
  */
 export function readPendingForRunner(mealId: string): PendingMealForRunner | null {
   const db = pulseDb();
@@ -332,12 +334,11 @@ export function readPendingForRunner(mealId: string): PendingMealForRunner | nul
         period_key: string;
         user_text: string | null;
         notes: string | null;
-        status: "pending" | "processing";
         leased_at: string | null;
       }>(
-        `SELECT id, user_meal_at, period_key, user_text, notes, status, leased_at
+        `SELECT id, user_meal_at, period_key, user_text, notes, leased_at
          FROM PULSE_MEAL
-         WHERE id = ? AND status IN ('pending','processing')`,
+         WHERE id = ? AND status = 'pending'`,
       )
       .get(mealId);
     if (!row) return null;
@@ -348,7 +349,6 @@ export function readPendingForRunner(mealId: string): PendingMealForRunner | nul
       user_meal_at: row.user_meal_at,
       user_text: row.user_text,
       notes: row.notes,
-      status: row.status,
       leased_at: row.leased_at,
       photos: photos
         .sort((a, b) => a.ord - b.ord)
@@ -360,28 +360,32 @@ export function readPendingForRunner(mealId: string): PendingMealForRunner | nul
 }
 
 /**
- * Atomic pending→processing transition. Returns true if this caller now
- * owns the meal; false if someone else already claimed it or the meal is
- * not in `pending`. The runner must check the return value before
- * launching the pipeline — a 0-row update is a no-op, not an error.
+ * Atomic claim. Returns true if this caller now owns the meal — false if
+ * someone else already claimed it (leased_at IS NOT NULL) or the meal
+ * isn't in `pending`. The runner must check the return value before
+ * launching the pipeline; a 0-row update is a no-op, not an error.
+ *
+ * The "processing" state is encoded as `status='pending' AND leased_at
+ * IS NOT NULL` — no separate status value needed, which keeps the CHECK
+ * constraint intact and avoids a destructive table rebuild.
  */
 export function claimPendingMeal(mealId: string): boolean {
   const db = getWritableDb();
   const r = db
     .prepare(
       `UPDATE PULSE_MEAL
-          SET status = 'processing',
-              leased_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          SET leased_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
               error_reason = NULL
-        WHERE id = ? AND status = 'pending'`,
+        WHERE id = ? AND status = 'pending' AND leased_at IS NULL`,
     )
     .run(mealId);
   return r.changes > 0;
 }
 
 /**
- * Terminal failure write. Flips processing→failed and records the reason
- * so the dashboard + retry endpoint can surface it.
+ * Terminal failure write. Releases the lease, records the reason, and
+ * leaves status='failed' so the dashboard + retry endpoint can surface
+ * it. A row already in `failed` is overwritten (latest reason wins).
  */
 export function failMeal(mealId: string, reason: string): void {
   const db = getWritableDb();
@@ -397,33 +401,44 @@ export function failMeal(mealId: string, reason: string): void {
 }
 
 /**
- * Manual retry: flip a failed meal back to pending so the next reconcile
- * tick picks it up. No-op on rows not in `failed` (already classified or
- * already pending). Returns true if the row was actually flipped.
+ * Flip any non-pending meal back to `pending` so the next reconcile tick
+ * reruns the VLM. Drops the existing classified components + edit history
+ * pointers (status fields) and clears the lease + error fields. Photos[]
+ * stay intact — the runner re-uses whichever paths are currently stored
+ * (inbox/ for never-classified, photos/ for already-moved).
+ *
+ * No-op (returns false) if the meal is already pending or doesn't exist.
  */
-export function retryFailedMeal(mealId: string): boolean {
+export function resetMealToPending(mealId: string): boolean {
   const db = getWritableDb();
-  const r = db
-    .prepare(
-      `UPDATE PULSE_MEAL
-          SET status = 'pending',
-              leased_at = NULL,
-              error_reason = NULL
-        WHERE id = ? AND status = 'failed'`,
-    )
-    .run(mealId);
-  return r.changes > 0;
+  const tx = db.transaction(() => {
+    const r = db
+      .prepare(
+        `UPDATE PULSE_MEAL
+            SET status = 'pending',
+                leased_at = NULL,
+                error_reason = NULL,
+                classified_at = NULL,
+                edited_at = NULL,
+                totals_json = '{}'
+          WHERE id = ? AND status != 'pending'`,
+      )
+      .run(mealId);
+    if (r.changes === 0) return false;
+    db.prepare(`DELETE FROM PULSE_MEAL_COMPONENT WHERE meal_id = ?`).run(mealId);
+    return true;
+  });
+  return tx() as boolean;
 }
 
 /**
- * Stale-lease sweep. Any meal that's been in `processing` longer than
- * `maxAgeMs` is treated as crashed and flipped to `failed` with reason
- * `lease_expired`. Returns the number of rows swept so the caller can
- * log it.
+ * Stale-lease sweep. Any pending meal whose lease is older than `maxAgeMs`
+ * is treated as crashed and flipped to `failed` with reason `lease_expired`.
+ * Returns the number of rows swept so the caller can log it.
  *
- * Run from the same hourly tick that drives reconcile — the runner can't
- * sweep its own claims (it'd kick itself off a long-running VLM call) so
- * the Pi owns the sweep. Default TTL is 30 min; tune via the caller.
+ * Run from the Pi (single-writer of pulse.db) — the runner can't sweep its
+ * own claims (it'd kick itself off a long-running VLM call). The GET
+ * /api/nutrition/pending route invokes this on every fetch.
  */
 export function sweepStaleLeases(maxAgeMs: number): number {
   const db = getWritableDb();
@@ -433,7 +448,7 @@ export function sweepStaleLeases(maxAgeMs: number): number {
           SET status = 'failed',
               error_reason = 'lease_expired',
               leased_at = NULL
-        WHERE status = 'processing'
+        WHERE status = 'pending'
           AND leased_at IS NOT NULL
           AND (strftime('%s', 'now') - strftime('%s', leased_at)) * 1000 > ?`,
     )

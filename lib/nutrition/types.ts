@@ -11,7 +11,7 @@
 
 export type MealKind = "breakfast" | "lunch" | "dinner" | "snack" | "drink";
 
-export type MealStatus = "pending" | "processing" | "classified" | "edited" | "failed";
+export type MealStatus = "pending" | "classified" | "edited" | "failed";
 
 export type MealSource = "photo" | "photo+text" | "text" | "manual";
 

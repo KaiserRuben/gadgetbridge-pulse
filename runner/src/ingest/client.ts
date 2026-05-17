@@ -309,7 +309,7 @@ export interface PendingMealDTO {
   user_meal_at: string;
   user_text: string | null;
   notes: string | null;
-  status: "pending" | "processing";
+  /** Non-null = a runner has it leased ("processing"). */
   leased_at: string | null;
   photos: PendingMealPhotoDTO[];
 }
