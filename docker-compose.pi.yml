@@ -1,0 +1,54 @@
+# Pulse v4 — Pi deployment compose.
+#
+# v4 split:
+#   - Dashboard runs OUTSIDE docker as a systemd service
+#     (`deploy/pulse-v4.service`). Avoids Pi disk pressure from docker
+#     storage. Source is Syncthing-replicated.
+#   - Triggers stays in docker — small image, isolated, scheduled work.
+#
+# Pi syncthing path: $PULSE_ROOT
+# Mac Ollama: set $OLLAMA_URL to your Mac host (often a Tailscale / LAN IP)
+#
+# Usage:
+#   cd "$REPO_PATH" && docker compose -f docker-compose.pi.yml up -d
+
+x-shared-env: &shared-env
+  PULSE_ROOT: /data
+  PULSE_DB_PATH: /data/pulse.db
+  GADGETBRIDGE_DB_PATH: /data/Gadgetbridge.db
+  INSIGHTS_ROOT: /data/insights
+  STATE_ROOT: /data/state
+  ALARMS_ROOT: /data/insights/alarms
+  OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+  COACH_MODEL: qwen3.6:latest
+  TZ: Europe/Berlin
+  # v4 ingest auth. Must match PULSE_INGEST_TOKEN on the Mac runner.
+  INGEST_TOKEN: ${INGEST_TOKEN:-}
+
+services:
+  triggers:
+    image: gadgetbridge-runner:v3
+    container_name: pulse-triggers
+    restart: unless-stopped
+    environment:
+      <<: *shared-env
+      POLL_INTERVAL_SEC: "300"
+      # Dashboard now runs as a systemd unit on the host, not in this
+      # compose network. Address it via the host gateway.
+      DASHBOARD_BASE_URL: "http://host.docker.internal:3030"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - "$PULSE_ROOT:/data"
+      - "./runner/src:/app/src:ro"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: ["node_modules/.bin/tsx", "src/scheduler/poll-loop.ts"]

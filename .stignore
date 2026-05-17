@@ -1,0 +1,10 @@
+node_modules
+runner/node_modules
+.next
+.scratch
+tmp
+deploy/*.tar
+.claude
+.idea
+.vscode
+.DS_Store

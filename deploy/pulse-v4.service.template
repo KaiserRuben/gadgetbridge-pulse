@@ -1,0 +1,60 @@
+# Template for the Pi systemd unit running the v4 dashboard (Next.js
+# standalone, pure SSR). Substitute the placeholders and install at
+# `/etc/systemd/system/pulse.service`.
+#
+# Required substitutions:
+#   {{PI_USER}}          Linux username on the Pi
+#   {{REPO_PATH}}        absolute path to the cloned repo on the Pi
+#                        (e.g. /home/alice/Projects/pulse)
+#   {{PULSE_DATA_ROOT}}  absolute path to your $PULSE_ROOT data dir
+#   {{NODE_BIN}}         absolute path to your Node 22 binary
+#   {{OLLAMA_URL}}       URL of the Ollama host (Mac, typically over Tailscale)
+#   {{TZ}}               IANA timezone for the dashboard
+#                        (e.g. Europe/Berlin, America/Los_Angeles)
+
+[Unit]
+Description=Pulse v4 dashboard (Next.js standalone, pure SSR)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{PI_USER}}
+Group={{PI_USER}}
+WorkingDirectory={{REPO_PATH}}/.next/standalone
+EnvironmentFile={{REPO_PATH}}/.env
+
+# Data paths — same as the docker-compose.pi.yml shared-env block.
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=3030
+Environment=HOME=/tmp
+Environment=PULSE_ROOT={{PULSE_DATA_ROOT}}
+Environment=PULSE_DB_PATH={{PULSE_DATA_ROOT}}/pulse.db
+Environment=GADGETBRIDGE_DB_PATH={{PULSE_DATA_ROOT}}/Gadgetbridge.db
+Environment=INSIGHTS_ROOT={{PULSE_DATA_ROOT}}/insights
+Environment=STATE_ROOT={{PULSE_DATA_ROOT}}/state
+Environment=ALARMS_ROOT={{PULSE_DATA_ROOT}}/insights/alarms
+Environment=OLLAMA_URL={{OLLAMA_URL}}
+Environment=TZ={{TZ}}
+
+ExecStart={{NODE_BIN}} {{REPO_PATH}}/.next/standalone/server.js
+
+# Memory headroom: standalone Next SSR stays well under 384MB.
+Environment=NODE_OPTIONS=--max-old-space-size=512
+
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Hardening kept minimal — the runtime needs read access to the Node binary
+# (often under /home/{{PI_USER}}) and write access to the Syncthing data dir.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths={{PULSE_DATA_ROOT}} /tmp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

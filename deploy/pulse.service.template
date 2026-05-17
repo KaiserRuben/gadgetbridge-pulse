@@ -1,0 +1,45 @@
+# Template for Pi systemd unit. Substitute the placeholders and install at
+# `/etc/systemd/system/pulse.service`, then `systemctl daemon-reload` and
+# `systemctl enable --now pulse`.
+#
+# Required substitutions:
+#   {{PI_USER}}          Linux username on the Pi (output of `whoami`)
+#   {{REPO_PATH}}        absolute path to the cloned repo on the Pi
+#                        (e.g. /home/alice/Projects/pulse)
+#   {{PULSE_DATA_ROOT}}  absolute path to your $PULSE_ROOT data dir
+#                        (e.g. /home/alice/Syncthing/pulse)
+#   {{NODE_BIN}}         absolute path to your Node 22 binary
+#                        (e.g. /usr/bin/node, or an nvm path)
+#   {{OLLAMA_URL}}       URL of the Ollama host (the Mac, typically over
+#                        Tailscale / LAN — e.g. http://mac.local:11434)
+
+[Unit]
+Description=Pulse health dashboard (read-only over Gadgetbridge.db)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{PI_USER}}
+WorkingDirectory={{REPO_PATH}}
+Environment=NODE_ENV=production
+Environment=PORT=3030
+Environment=HOSTNAME=0.0.0.0
+Environment=PULSE_ROOT={{PULSE_DATA_ROOT}}
+Environment=GADGETBRIDGE_DB_PATH={{PULSE_DATA_ROOT}}/Gadgetbridge.db
+Environment=PULSE_DB_PATH={{PULSE_DATA_ROOT}}/pulse.db
+Environment=INSIGHTS_ROOT={{PULSE_DATA_ROOT}}/insights
+Environment=STATE_ROOT={{PULSE_DATA_ROOT}}/state
+# Ollama runs on the Mac, not the Pi. Set OLLAMA_URL so the on-demand routes
+# (Why? button, screenshot ingest) reach the Mac's qwen3.6. Without this,
+# those routes fail with ECONNREFUSED on the Pi.
+Environment=OLLAMA_URL={{OLLAMA_URL}}
+ExecStart={{NODE_BIN}} .next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+# Pi-friendly limits
+MemoryMax=512M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

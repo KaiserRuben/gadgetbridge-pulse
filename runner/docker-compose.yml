@@ -1,0 +1,53 @@
+x-runner-base: &runner-base
+  build:
+    context: ..
+    dockerfile: runner/Dockerfile
+  image: gadgetbridge-runner:v2
+  restart: unless-stopped
+  environment: &runner-env
+    PULSE_ROOT: /data
+    PULSE_DB_PATH: /data/pulse.db
+    GADGETBRIDGE_DB_PATH: /data/Gadgetbridge.db
+    INSIGHTS_ROOT: /data/insights
+    STATE_ROOT: /data/state
+    ALARMS_ROOT: /data/insights/alarms
+    OLLAMA_URL: http://host.docker.internal:11434
+    COACH_MODEL: qwen3.6:latest
+    TZ: Europe/Berlin
+    # Pi ingest (v4 data layer). Empty → runner stays in legacy file-write
+    # mode. Set both to enable progressive HTTP push to the Pi dashboard.
+    PULSE_INGEST_BASE_URL: ${PULSE_INGEST_BASE_URL:-}
+    PULSE_INGEST_TOKEN: ${PULSE_INGEST_TOKEN:-}
+    PULSE_INGEST_OUTBOX_PATH: /data/ingest-outbox.db
+  volumes:
+    - "${PULSE_ROOT:-./pulse}:/data"
+    - ./src:/app/src:ro
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # Event-driven runner. Replaces the previous daily-watch + finalize-loop pair.
+  # Behaviour:
+  #   - chokidar on Gadgetbridge.db → debounced live pipeline (stage 0/1 + alarms,
+  #     no LLM) + emit sleep_complete / workout_complete events
+  #   - day_end events fire as soon as a wake-date rolls over (driven by the
+  #     hourly fallback tick or boot catch-up over FINALIZE_LOOKBACK_DAYS)
+  #   - subscribers (events/subscribers.ts) run the full v2 pipeline once per
+  #     day_end, serialised per periodKey so the GPU stays single-tenant
+  runner:
+    <<: *runner-base
+    container_name: gadgetbridge-runner
+    environment:
+      <<: *runner-env
+      FINALIZE_LOOKBACK_DAYS: "7"
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 2G
+    command: ["node_modules/.bin/tsx", "src/index.ts", "events-loop"]

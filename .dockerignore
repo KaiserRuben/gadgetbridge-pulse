@@ -1,0 +1,17 @@
+# Keep the build context small + secret-free.
+.git
+.next
+node_modules
+runner/node_modules
+runner/dist
+**/.DS_Store
+**/*.log
+tmp/
+_archive/
+runner/.vapid-keys.json
+.env
+.env.local
+.env.*.local
+docs/
+*.md
+!README.md

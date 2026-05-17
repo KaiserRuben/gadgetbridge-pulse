@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for Mac launchd unit. Substitute the placeholders and copy to
+  `~/Library/LaunchAgents/local.pulse-runner.plist`, then `launchctl load`.
+
+  Required substitutions:
+    {{REPO_PATH}}        absolute path to the cloned repo
+                         (e.g. /Users/alice/Projects/pulse)
+    {{PULSE_DATA_ROOT}}  absolute path to your $PULSE_ROOT data dir
+                         (e.g. /Users/alice/Syncthing/pulse)
+    {{MAC_USER}}         your macOS short username (output of `whoami`)
+    {{DOCKER_BIN}}       absolute path to the `docker` binary
+                         (often /usr/local/bin/docker or
+                         /opt/homebrew/bin/docker on Apple Silicon)
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.pulse-runner</string>
+
+  <key>WatchPaths</key>
+  <array>
+    <string>{{PULSE_DATA_ROOT}}/Gadgetbridge.db</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Weekday</key><integer>0</integer>
+      <key>Hour</key><integer>6</integer>
+      <key>Minute</key><integer>0</integer>
+    </dict>
+  </array>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key><false/>
+  </dict>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{DOCKER_BIN}}</string>
+    <string>compose</string>
+    <string>--file</string>
+    <string>{{REPO_PATH}}/runner/docker-compose.yml</string>
+    <string>up</string>
+    <string>--abort-on-container-exit</string>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/{{MAC_USER}}/Library/Logs/pulse-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/{{MAC_USER}}/Library/Logs/pulse-runner-error.log</string>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>UserName</key>
+  <string>{{MAC_USER}}</string>
+</dict>
+</plist>
