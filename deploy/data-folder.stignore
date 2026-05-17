@@ -5,8 +5,8 @@
 # tree. Each host keeps its local pulse.db; Pi is the authoritative writer.
 # Insights/state are read from pulse.db rows.
 #
-# Mac path: ./pulse/.stignore
-# Pi path:  /home/ruben/transfer/pulse/.stignore
+# Mac path: $PULSE_ROOT/.stignore
+# Pi path:  $PULSE_ROOT/.stignore
 #
 # Keep Gadgetbridge.db + Gadgetbridge.zip in sync — that's the only flow
 # we still need (phone → Mac).
