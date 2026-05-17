@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chat-message.schema.json",
+  "title": "TrainingChatMessageV1",
+  "description": "One row in PULSE_CHAT_QUEUE / PULSE_CHAT_MESSAGE. User questions are queued when the remote Ollama endpoint is unreachable; assistant replies stream back via the worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "thread_id",
+    "role",
+    "created_at",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/chat_message/v1" },
+    "id": { "type": "number", "minimum": 1 },
+    "thread_id": { "type": "string", "format": "uuid" },
+    "role": { "enum": ["user", "assistant", "system"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "delivered_at": { "type": ["string", "null"], "format": "date-time" },
+    "status": {
+      "enum": ["queued", "in_flight", "delivered", "failed", "cancelled"],
+      "default": "queued"
+    },
+    "content": { "type": ["string", "null"] },
+    "context_snapshot": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Frozen plan + recent-session bundle attached to the user question at send time. Assistant reply re-uses this rather than re-fetching."
+    },
+    "model": { "type": ["string", "null"], "maxLength": 80 },
+    "endpoint": { "enum": ["remote", "local", null], "default": null },
+    "extracted_proposal_id": {
+      "type": ["number", "null"],
+      "description": "If the assistant suggested a plan change, the corresponding PULSE_ADJUSTMENT_PROPOSAL row id."
+    },
+    "error": { "type": ["string", "null"], "maxLength": 480 }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "$id": "meal.schema.json",
+  "title": "MealV1",
+  "description": "A single meal record — one photo (optional) + optional user_text + classification + nutrition snapshot. Source of truth for the /api/ingest/meal payload, the pulse.db PULSE_MEAL row's read shape, and the records/<id>.json snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "user_meal_at",
+    "period_key",
+    "status",
+    "source",
+    "kind",
+    "components",
+    "revisions",
+    "totals"
+  ],
+  "properties": {
+    "schema_version": { "const": "nutrition/meal/v1" },
+    "id": { "type": "string", "minLength": 1 },
+    "user_meal_at": { "type": "string", "format": "date-time" },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "photo_path": { "type": ["string", "null"] },
+    "photo_mime": { "type": ["string", "null"] },
+    "user_text": { "type": ["string", "null"], "maxLength": 2000 },
+    "notes": { "type": ["string", "null"], "maxLength": 2000 },
+    "status": { "enum": ["pending", "classified", "edited", "failed"] },
+    "source": { "enum": ["photo", "photo+text", "text", "manual"] },
+    "kind": { "enum": ["breakfast", "lunch", "dinner", "snack", "drink"] },
+    "classified_at": { "type": ["string", "null"], "format": "date-time" },
+    "edited_at": { "type": ["string", "null"], "format": "date-time" },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/MealComponent" }
+    },
+    "revisions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/MealRevision" }
+    },
+    "totals": { "$ref": "#/definitions/NutritionFacts" }
+  },
+  "definitions": {
+    "MealComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ord", "food_key", "label", "grams", "source", "nutrition"],
+      "properties": {
+        "id": { "type": "string" },
+        "ord": { "type": "integer", "minimum": 0 },
+        "food_key": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "grams": { "type": "number", "minimum": 0, "maximum": 5000 },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "source": { "enum": ["vlm", "user_edit", "user_add", "user_text"] },
+        "nutrition": { "$ref": "#/definitions/NutritionSnapshot" }
+      }
+    },
+    "MealRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "created_at", "diff_summary", "by"],
+      "properties": {
+        "id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "diff_summary": { "type": "string", "maxLength": 500 },
+        "by": { "enum": ["user", "vlm"] }
+      }
+    },
+    "NutritionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per100g", "totals"],
+      "properties": {
+        "per100g": { "$ref": "#/definitions/NutritionFacts" },
+        "totals": { "$ref": "#/definitions/NutritionFacts" }
+      }
+    },
+    "NutritionFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kcal", "protein_g", "carbs_g", "fat_g"],
+      "properties": {
+        "kcal": { "type": "number", "minimum": 0 },
+        "protein_g": { "type": "number", "minimum": 0 },
+        "carbs_g": { "type": "number", "minimum": 0 },
+        "fat_g": { "type": "number", "minimum": 0 },
+        "fiber_g": { "type": "number", "minimum": 0 },
+        "sugar_g": { "type": "number", "minimum": 0 },
+        "saturated_fat_g": { "type": "number", "minimum": 0 },
+        "sodium_mg": { "type": "number", "minimum": 0 },
+        "iron_mg": { "type": "number", "minimum": 0 },
+        "calcium_mg": { "type": "number", "minimum": 0 },
+        "magnesium_mg": { "type": "number", "minimum": 0 },
+        "zinc_mg": { "type": "number", "minimum": 0 },
+        "vit_c_mg": { "type": "number", "minimum": 0 },
+        "vit_d_ug": { "type": "number", "minimum": 0 },
+        "vit_b12_ug": { "type": "number", "minimum": 0 },
+        "folate_ug": { "type": "number", "minimum": 0 },
+        "omega3_g": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

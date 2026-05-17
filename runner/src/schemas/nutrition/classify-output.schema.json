@@ -1,0 +1,33 @@
+{
+  "$id": "classify-output.schema.json",
+  "title": "NutritionClassifyOutput",
+  "description": "Stage A — locked strict schema sent to Ollama as `format`. Same schema is re-validated client-side via parseAndValidate (pydantic-style). Minimal generation shape: no envelope fields. Storage envelope (meal_id, period_key, source, etc.) is bolted on by the runner after the model call. See docs/NUTRITION_VLM_VALIDATION.md §2.6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meal_kind", "components", "notes"],
+  "properties": {
+    "meal_kind": {
+      "type": "string",
+      "enum": ["breakfast", "lunch", "dinner", "snack", "drink"]
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "food_key", "grams", "confidence", "rationale", "source"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "food_key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 60 },
+          "grams": { "type": "number", "minimum": 0, "maximum": 5000 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "rationale": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "source": { "type": "string", "enum": ["vlm", "user_text"] }
+        }
+      }
+    },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}

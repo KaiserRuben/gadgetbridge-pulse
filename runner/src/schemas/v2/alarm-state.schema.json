@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "alarm-state.schema.json",
+  "title": "AlarmStateV1",
+  "description": "Mutable alarm state file kept in the bidirectional Syncthing folder.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snooze_until", "dismissed_counts", "muted_topics"],
+  "properties": {
+    "schema_version": { "const": "state/v1" },
+    "snooze_until": {
+      "type": "object",
+      "description": "Map of alarm_id -> ISO date until which the alarm is snoozed.",
+      "additionalProperties": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "dismissed_counts": {
+      "type": "object",
+      "description": "Map of alarm_id -> number of times the alarm has been dismissed.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "muted_topics": {
+      "type": "array",
+      "description": "Observation IDs the user has muted.",
+      "items": { "type": "string" }
+    }
+  }
+}

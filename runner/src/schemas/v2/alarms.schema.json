@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "alarms.schema.json",
+  "title": "AlarmsV2",
+  "description": "Append-only event log per month for fired alarms.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "month_key", "events"],
+  "properties": {
+    "schema_version": { "const": "alarms/v2" },
+    "month_key": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "description": "ISO month YYYY-MM identifying the month-bucket file."
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/AlarmEvent" }
+    }
+  },
+  "definitions": {
+    "AlarmEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alarm_id",
+        "fired_at",
+        "period_key",
+        "tier",
+        "domain",
+        "metric",
+        "severity_label",
+        "gate_triggered",
+        "z_score",
+        "evidence_window",
+        "dismissed",
+        "dismissed_at",
+        "dismissed_reason"
+      ],
+      "properties": {
+        "alarm_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "snake_case identifier of the alarm rule."
+        },
+        "fired_at": { "type": "string", "format": "date-time" },
+        "period_key": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "tier": { "type": "string", "enum": ["S1", "S2", "S3"] },
+        "domain": { "type": "string" },
+        "metric": { "type": "string" },
+        "severity_label": { "type": "string", "enum": ["soft", "hard"] },
+        "gate_triggered": {
+          "type": "string",
+          "enum": ["z_score", "absolute", "duration", "pattern", "compound"]
+        },
+        "z_score": { "type": ["number", "null"] },
+        "evidence_window": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["period_key", "value"],
+            "properties": {
+              "period_key": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "value": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "dismissed": { "type": "boolean" },
+        "dismissed_at": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string", "format": "date-time" }
+          ]
+        },
+        "dismissed_reason": { "type": ["string", "null"], "maxLength": 200 }
+      }
+    }
+  }
+}

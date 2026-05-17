@@ -1,0 +1,177 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "weekly.schema.json",
+  "title": "WeeklyRecapV2",
+  "description": "Weekly recap payload. reasoning_trace is FIRST so the model fills it before any answer field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reasoning_trace",
+    "schema_version",
+    "language",
+    "abstain",
+    "abstain_reason",
+    "trajectory_headline",
+    "chart_refs",
+    "pattern_callouts",
+    "streaks",
+    "personal_best",
+    "personal_worst",
+    "micro_experiment",
+    "confidence"
+  ],
+  "properties": {
+    "reasoning_trace": {
+      "type": "string",
+      "minLength": 60,
+      "maxLength": 800,
+      "description": "Chain-of-thought trace produced before the answer fields. MUST be the first property."
+    },
+    "schema_version": { "const": "weekly/v2" },
+    "language": { "type": "string", "enum": ["de", "en"] },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"], "maxLength": 200 },
+    "trajectory_headline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recovery", "activity", "stress"],
+      "properties": {
+        "recovery": { "type": "string", "maxLength": 60 },
+        "activity": { "type": "string", "maxLength": 60 },
+        "stress": { "type": "string", "maxLength": 60 }
+      }
+    },
+    "chart_refs": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": { "$ref": "#/definitions/ChartRef" }
+    },
+    "pattern_callouts": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 4,
+      "items": { "$ref": "#/definitions/PatternCallout" }
+    },
+    "streaks": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 4,
+      "items": { "$ref": "#/definitions/Streak" }
+    },
+    "personal_best": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/PersonalRecord" }
+      ]
+    },
+    "personal_worst": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/PersonalWorst" }
+      ]
+    },
+    "micro_experiment": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/MicroExperiment" }
+      ]
+    },
+    "confidence": { "$ref": "#/definitions/Confidence" }
+  },
+  "definitions": {
+    "ChartRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chart_id", "caption"],
+      "properties": {
+        "chart_id": { "type": "string" },
+        "caption": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "PatternCallout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "occurrences", "domains", "days"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string", "maxLength": 200 },
+        "occurrences": { "type": "integer", "minimum": 1 },
+        "domains": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "type": "string" }
+        },
+        "days": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        }
+      }
+    },
+    "Streak": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "length_days", "metric_id"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string", "maxLength": 80 },
+        "length_days": { "type": "integer", "minimum": 1 },
+        "metric_id": { "type": "string" }
+      }
+    },
+    "PersonalRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "value", "date", "note"],
+      "properties": {
+        "metric_id": { "type": "string" },
+        "value": { "type": "number" },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "note": { "type": ["string", "null"], "maxLength": 160 }
+      }
+    },
+    "PersonalWorst": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "value", "date", "action_or_note"],
+      "properties": {
+        "metric_id": { "type": "string" },
+        "value": { "type": "number" },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "action_or_note": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 200,
+          "description": "Optional accompanying action or note when surfacing a personal worst. Repair pass fills a default if empty."
+        }
+      }
+    },
+    "MicroExperiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis", "anchor", "tiny", "fallback", "target_metric_id", "duration_days"],
+      "properties": {
+        "hypothesis": { "type": "string", "maxLength": 200 },
+        "anchor": { "type": "string", "maxLength": 80 },
+        "tiny": { "type": "string", "maxLength": 80 },
+        "fallback": { "type": "string", "maxLength": 80 },
+        "target_metric_id": { "type": "string" },
+        "duration_days": { "type": "integer", "minimum": 1, "maximum": 28 }
+      }
+    },
+    "Confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "calc", "factors"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "calc": { "type": "string" },
+        "factors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

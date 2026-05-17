@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "adjustment-proposal.schema.json",
+  "title": "TrainingAdjustmentProposalV1",
+  "description": "An LLM-generated proposed change to the active training plan. Always reviewed by the user before being applied. Acceptance produces plan_v(n+1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "generated_at",
+    "target_plan_version",
+    "scope",
+    "diff",
+    "reasoning_trace",
+    "cited_data",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/adjustment_proposal/v1" },
+    "id": { "type": "number", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "model": { "type": ["string", "null"], "maxLength": 80 },
+    "prompt_version": { "type": ["string", "null"], "maxLength": 40 },
+    "target_plan_version": { "type": "number", "minimum": 1 },
+    "scope": { "enum": ["exercise", "session_template", "phase", "global"] },
+    "diff": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/DiffOp" }
+    },
+    "reasoning_trace": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "summary_de": { "type": ["string", "null"], "maxLength": 480 },
+    "cited_data": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Citation" }
+    },
+    "status": { "enum": ["pending", "accepted", "rejected", "edited"] },
+    "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+    "resolution_note": {
+      "type": ["string", "null"],
+      "maxLength": 480,
+      "description": "User's free-text reason for accept/reject/edit. Feeds future LLM context."
+    }
+  },
+  "definitions": {
+    "DiffOp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "path"],
+      "properties": {
+        "op": { "enum": ["set", "insert", "remove", "replace"] },
+        "path": { "type": "string", "pattern": "^/.*", "maxLength": 240, "description": "JSON Pointer into plan payload" },
+        "before": {},
+        "after": {},
+        "human_de": { "type": ["string", "null"], "maxLength": 240 }
+      }
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref_id", "summary"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "set_log",
+            "pain_flag",
+            "actual_session",
+            "recovery_metric",
+            "sleep_metric",
+            "activity_metric",
+            "workout",
+            "plan_version",
+            "resolution_note",
+            "other"
+          ]
+        },
+        "ref_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summary": { "type": "string", "maxLength": 240 }
+      }
+    }
+  }
+}

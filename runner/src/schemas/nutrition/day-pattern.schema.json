@@ -1,0 +1,83 @@
+{
+  "$id": "day-pattern.schema.json",
+  "title": "NutritionDayPatternV1",
+  "description": "v3 nutrition cluster output. Aggregates one day's meals into totals + delta-vs-target + qualitative `events[]` produced by a multi-image VLM pass over all the day's photos in chronological order. Persisted to PULSE_INSIGHT with cluster='nutrition'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "period_key",
+    "language",
+    "totals",
+    "delta_vs_target",
+    "events",
+    "flags",
+    "meals_count",
+    "day_complete"
+  ],
+  "properties": {
+    "schema_version": { "const": "nutrition/day-pattern/v1" },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "language": { "enum": ["de", "en"] },
+    "meals_count": { "type": "integer", "minimum": 0 },
+    "day_complete": { "type": "boolean" },
+    "totals": { "$ref": "#/definitions/NutritionFacts" },
+    "delta_vs_target": {
+      "type": "object",
+      "description": "Signed deltas (intake - target). Only nutrients with a configured target appear.",
+      "additionalProperties": { "type": "number" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/DayPatternEvent" }
+    },
+    "flags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pattern flags emitted by the VLM, e.g. 'possible_unlogged_evening', 'protein_gap_training_day'."
+    },
+    "reasoning_trace": { "type": ["string", "null"], "maxLength": 2000 }
+  },
+  "definitions": {
+    "DayPatternEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "started_at", "ended_at", "meal_ids", "summary"],
+      "properties": {
+        "kind": { "enum": ["single_meal", "multi_course", "snacking", "drink_round"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "meal_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "NutritionFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kcal", "protein_g", "carbs_g", "fat_g"],
+      "properties": {
+        "kcal": { "type": "number", "minimum": 0 },
+        "protein_g": { "type": "number", "minimum": 0 },
+        "carbs_g": { "type": "number", "minimum": 0 },
+        "fat_g": { "type": "number", "minimum": 0 },
+        "fiber_g": { "type": "number", "minimum": 0 },
+        "sugar_g": { "type": "number", "minimum": 0 },
+        "saturated_fat_g": { "type": "number", "minimum": 0 },
+        "sodium_mg": { "type": "number", "minimum": 0 },
+        "iron_mg": { "type": "number", "minimum": 0 },
+        "calcium_mg": { "type": "number", "minimum": 0 },
+        "magnesium_mg": { "type": "number", "minimum": 0 },
+        "zinc_mg": { "type": "number", "minimum": 0 },
+        "vit_c_mg": { "type": "number", "minimum": 0 },
+        "vit_d_ug": { "type": "number", "minimum": 0 },
+        "vit_b12_ug": { "type": "number", "minimum": 0 },
+        "folate_ug": { "type": "number", "minimum": 0 },
+        "omega3_g": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "set-log.schema.json",
+  "title": "TrainingSetLogV1",
+  "description": "One set logged by the user during an actual session. Generic: covers reps/weight strength sets, time/distance conditioning sets, and BW holds via nullable variant fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "actual_session_id",
+    "exercise_id",
+    "set_idx",
+    "logged_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/set_log/v1" },
+    "id": { "type": "number", "minimum": 1 },
+    "actual_session_id": { "type": "string", "format": "uuid" },
+    "exercise_id": { "type": "string", "minLength": 1 },
+    "set_idx": { "type": "number", "minimum": 1, "maximum": 99 },
+    "reps": { "type": ["number", "null"], "minimum": 0, "maximum": 999 },
+    "weight_kg": { "type": ["number", "null"], "minimum": 0, "maximum": 1000 },
+    "duration_sec": { "type": ["number", "null"], "minimum": 0 },
+    "distance_m": { "type": ["number", "null"], "minimum": 0 },
+    "rpe": { "type": ["number", "null"], "minimum": 1, "maximum": 10 },
+    "rir": { "type": ["number", "null"], "minimum": 0, "maximum": 10 },
+    "side": { "enum": ["both", "left", "right", null], "default": null },
+    "note": { "type": ["string", "null"], "maxLength": 240 },
+    "logged_at": { "type": "string", "format": "date-time" },
+    "last_edited_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

@@ -1,0 +1,246 @@
+{
+  "$id": "training-insight.schema.json",
+  "title": "TrainingInsightV1",
+  "description": "Per-period training insight emitted by the v3 training use-case. Three kinds: prescription (tomorrow's session), post_session (what just happened), weekly (week-over-week roll-up).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "period_key",
+    "language",
+    "abstain",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/insight/v1" },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Auto-injected by the runner. true = artifact still in-flight or failed validation. Writer flips to false at atomic-rename time."
+    },
+    "reasoning_trace": {
+      "type": ["string", "null"],
+      "maxLength": 2000,
+      "description": "Chain-of-thought trace produced before the answer fields."
+    },
+    "kind": { "enum": ["prescription", "post_session", "weekly"] },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$|^\\d{4}-W\\d{2}$" },
+    "language": { "enum": ["de", "en"] },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"], "maxLength": 200 },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary": { "type": ["string", "null"], "maxLength": 480 },
+    "stale": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a cited set_log or pain_flag has been edited since emission; runner should re-emit."
+    },
+    "prescription": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/InsightPrescription" }
+      ]
+    },
+    "post_session": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/PostSession" }
+      ]
+    },
+    "weekly": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/WeeklyRollup" }
+      ]
+    },
+    "citations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Citation" },
+      "default": []
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": ["string", "null"], "maxLength": 480 }
+      }
+    }
+  },
+  "definitions": {
+    "LocationCode": {
+      "enum": [
+        "back",
+        "shoulder",
+        "elbow",
+        "wrist",
+        "thumb",
+        "hip",
+        "knee",
+        "ankle",
+        "foot",
+        "neck",
+        "head",
+        "chest",
+        "abdominal",
+        "other"
+      ],
+      "description": "Mirror of pain-flag.schema.json#/definitions/LocationCode — duplicated here so the Ollama grammar engine doesn't have to resolve cross-file $refs."
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref_id", "summary"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "set_log",
+            "pain_flag",
+            "actual_session",
+            "recovery_metric",
+            "sleep_metric",
+            "activity_metric",
+            "workout",
+            "plan_version",
+            "resolution_note",
+            "other"
+          ]
+        },
+        "ref_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summary": { "type": "string", "maxLength": 240 }
+      },
+      "description": "Mirror of adjustment-proposal.schema.json#/definitions/Citation — duplicated to stay single-document for Ollama format mode."
+    },
+    "InsightPrescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the parent insight abstains, all fields may be null/empty — the LLM is asked to set the whole `prescription` block to null in that case, but partial objects survive validation too.",
+      "required": [],
+      "properties": {
+        "suggested_session_template_id": { "type": ["string", "null"] },
+        "alternatives": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "justification_de": { "type": ["string", "null"], "maxLength": 600 },
+        "load_adjustments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exercise_id", "delta_kind"],
+            "properties": {
+              "exercise_id": { "type": "string" },
+              "delta_kind": { "enum": ["increase", "hold", "decrease", "substitute"] },
+              "delta_value": { "type": ["string", "null"], "maxLength": 80 },
+              "reason_de": { "type": ["string", "null"], "maxLength": 240 }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "PostSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the parent insight abstains, all fields may be null/empty.",
+      "required": [],
+      "properties": {
+        "actual_session_id": { "type": ["string", "null"] },
+        "quality_kpis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label_de", "value", "band"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "label_de": { "type": "string", "maxLength": 40 },
+              "value": { "type": "number", "minimum": 0, "maximum": 100 },
+              "band": { "enum": ["above_usual", "steady", "below_usual"] },
+              "reasoning": { "type": ["string", "null"], "maxLength": 240 }
+            }
+          },
+          "minItems": 0,
+          "maxItems": 6
+        },
+        "callouts_de": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 240 },
+          "default": []
+        },
+        "pain_quotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pain_flag_id", "verbatim_quote"],
+            "properties": {
+              "pain_flag_id": { "type": "number" },
+              "verbatim_quote": {
+                "type": "string",
+                "maxLength": 480,
+                "description": "Verbatim echo of pain_flag.free_text or rendered template — never paraphrased."
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "WeeklyRollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sessions_completed": { "type": "number", "minimum": 0 },
+        "sessions_planned": { "type": "number", "minimum": 0 },
+        "adherence_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "volume_by_pattern": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "description": "Sum of working sets per movement pattern."
+        },
+        "rpe_trend": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exercise_id", "trend"],
+            "properties": {
+              "exercise_id": { "type": "string" },
+              "trend": { "enum": ["rising", "flat", "falling"] },
+              "samples": { "type": "number", "minimum": 1 }
+            }
+          },
+          "default": []
+        },
+        "pain_recurrence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["location_code", "side", "count_28d"],
+            "properties": {
+              "location_code": { "$ref": "#/definitions/LocationCode" },
+              "side": { "enum": ["left", "right", "bilateral", "n_a"] },
+              "count_28d": { "type": "number", "minimum": 0 }
+            }
+          },
+          "default": []
+        },
+        "phase_progress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "phase_id": { "type": "string" },
+            "criteria_met": { "type": "number", "minimum": 0 },
+            "criteria_total": { "type": "number", "minimum": 0 },
+            "advance_suggested": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

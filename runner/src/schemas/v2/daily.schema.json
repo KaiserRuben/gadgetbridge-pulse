@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "daily.schema.json",
+  "title": "DailyInsightV2",
+  "description": "Daily insight payload produced by the prose model (Ollama format mode). reasoning_trace is FIRST so the model fills it before any answer field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reasoning_trace",
+    "schema_version",
+    "language",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "verdict_band",
+    "summary",
+    "drivers",
+    "affirmation",
+    "reflection",
+    "action",
+    "i_feel_fine_override",
+    "confidence"
+  ],
+  "properties": {
+    "reasoning_trace": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 600,
+      "description": "Chain-of-thought trace produced before the answer fields. MUST be the first property."
+    },
+    "schema_version": { "enum": ["daily/v2", "daily/v2.1", "daily/v2.2"] },
+    "language": { "type": "string", "enum": ["de", "en"] },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": {
+      "type": ["string", "null"],
+      "maxLength": 140
+    },
+    "headline": {
+      "type": ["string", "null"],
+      "maxLength": 40
+    },
+    "verdict_band": {
+      "type": ["string", "null"],
+      "enum": ["steady", "above_usual", "below_usual", null]
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "maxLength": 180
+    },
+    "drivers": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": { "$ref": "#/definitions/Driver" }
+    },
+    "affirmation": {
+      "type": ["string", "null"],
+      "maxLength": 140
+    },
+    "reflection": {
+      "type": ["string", "null"],
+      "maxLength": 160
+    },
+    "action": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/Action" }
+      ]
+    },
+    "i_feel_fine_override": { "type": "boolean" },
+    "confidence": { "$ref": "#/definitions/Confidence" },
+    "coaching_cards": {
+      "type": "array",
+      "maxItems": 4,
+      "description": "Optional per-lever CoachCards (Phase 3 analyzer stage). Additive in daily/v2.1.",
+      "items": {
+        "type": "object",
+        "required": ["lever", "domain", "trajectory", "projection_90d", "tiny_next_step", "confidence"],
+        "properties": {
+          "lever": { "type": "string" },
+          "domain": { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "trajectory": { "type": "string", "maxLength": 220 },
+          "projection_90d": { "type": "string", "maxLength": 200 },
+          "interpretation": {
+            "type": ["string", "null"],
+            "maxLength": 200,
+            "description": "Optional hypothesis naming what might be going on (e.g. 'RHR-Erhoehung + HRV-Abfall + Schlaf kurz — wirkt wie Erholungs-Defizit oder beginnender Infekt')."
+          },
+          "tiny_next_step": {
+            "type": "object",
+            "required": ["anchor", "tiny", "horizon"],
+            "properties": {
+              "anchor": { "type": "string", "maxLength": 60 },
+              "tiny": { "type": "string", "maxLength": 80 },
+              "horizon": { "type": "string", "enum": ["today", "tonight", "tomorrow", "this_week"] }
+            }
+          }
+        }
+      }
+    },
+    "surprise_insights": {
+      "type": "array",
+      "maxItems": 5,
+      "description": "Optional surprise-ranked insights (Phase 3 analyzer stage). Additive in daily/v2.2. Ranked deterministically by |z|; LLM only writes the headline + reason framing.",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric",
+          "metric_label_de",
+          "today_value",
+          "baseline_mean",
+          "baseline_std",
+          "z_score",
+          "surprise_label",
+          "direction",
+          "n_baseline",
+          "fragile",
+          "headline_de",
+          "reason_de"
+        ],
+        "properties": {
+          "metric": { "type": "string" },
+          "metric_label_de": { "type": "string" },
+          "today_value": { "type": "number" },
+          "baseline_mean": { "type": "number" },
+          "baseline_std": { "type": "number" },
+          "z_score": { "type": "number" },
+          "surprise_label": { "type": "string", "enum": ["high", "medium", "low"] },
+          "direction": { "type": "string", "enum": ["up", "down"] },
+          "n_baseline": { "type": "integer", "minimum": 0 },
+          "fragile": { "type": "boolean" },
+          "headline_de": { "type": "string", "maxLength": 60 },
+          "reason_de": { "type": "string", "maxLength": 80 }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clause", "metric_id", "delta_text", "direction", "evidence_ids"],
+      "properties": {
+        "clause": { "type": "string", "maxLength": 80 },
+        "metric_id": { "type": "string" },
+        "delta_text": { "type": "string", "maxLength": 40 },
+        "direction": { "type": "string", "enum": ["up", "down", "flat"] },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor", "tiny", "fallback", "horizon"],
+      "properties": {
+        "anchor": { "type": "string", "maxLength": 80 },
+        "tiny": { "type": "string", "maxLength": 80 },
+        "fallback": { "type": "string", "maxLength": 80 },
+        "horizon": { "type": "string", "enum": ["today", "tonight", "tomorrow", "this_week"] }
+      }
+    },
+    "Confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "calc", "factors"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "calc": { "type": "string" },
+        "factors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

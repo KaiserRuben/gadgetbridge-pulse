@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "planned-session.schema.json",
+  "title": "PlannedSessionV1",
+  "description": "Materialised view of a session-template-for-a-date. Created lazily on first read of a given (period_key, plan_version) and re-materialised when plan_version advances. Decoupling planning from logging means the user sees frozen prescription numbers even if the plan changes mid-week.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "period_key",
+    "plan_version",
+    "session_template_id",
+    "target"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/planned_session/v1" },
+    "id": { "type": "number", "minimum": 1 },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "plan_version": { "type": "number", "minimum": 1 },
+    "session_template_id": { "type": "string", "minLength": 1 },
+    "target": {
+      "$ref": "training-plan.schema.json#/definitions/SessionTemplate"
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

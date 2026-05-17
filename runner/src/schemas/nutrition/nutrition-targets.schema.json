@@ -1,0 +1,32 @@
+{
+  "$id": "nutrition-targets.schema.json",
+  "title": "NutritionTargetsV1",
+  "description": "User-configurable per-nutrient targets. Persisted at $PULSE_ROOT/meals/targets.json (and shadowed in PULSE_STATE_KV key='nutrition_targets'). Either `target` (literal) or `auto_from` (formula evaluated server-side, e.g. '1.6 * weight_kg') must be set; UI shows whichever is non-null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "updated_at", "rows"],
+  "properties": {
+    "schema_version": { "const": "nutrition/targets/v1" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "rows": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/NutrientTarget" }
+    }
+  },
+  "definitions": {
+    "NutrientTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "unit", "group", "default_target"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "unit": { "enum": ["kcal", "g", "mg", "ug"] },
+        "group": { "enum": ["macro", "micro"] },
+        "target": { "type": ["number", "null"], "minimum": 0 },
+        "auto_from": { "type": ["string", "null"], "maxLength": 200 },
+        "default_target": { "type": ["number", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

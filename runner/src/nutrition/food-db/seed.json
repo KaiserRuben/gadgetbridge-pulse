@@ -1,0 +1,85 @@
+{
+  "schema_version": "nutrition/food-db/seed/v1",
+  "foods": {
+    "potato_boiled": {
+      "label": "Kartoffeln gekocht",
+      "per100g": { "kcal": 77, "protein_g": 2.0, "carbs_g": 17.0, "fat_g": 0.1, "fiber_g": 2.2, "iron_mg": 0.8, "vit_c_mg": 19.7, "magnesium_mg": 23, "calcium_mg": 12 }
+    },
+    "rice_cooked": {
+      "label": "Reis gekocht",
+      "per100g": { "kcal": 130, "protein_g": 2.7, "carbs_g": 28.0, "fat_g": 0.3, "fiber_g": 0.4, "iron_mg": 0.2, "magnesium_mg": 12 }
+    },
+    "chickpeas_cooked": {
+      "label": "Kichererbsen gekocht",
+      "per100g": { "kcal": 164, "protein_g": 8.9, "carbs_g": 27.4, "fat_g": 2.6, "fiber_g": 7.6, "iron_mg": 2.9, "magnesium_mg": 48, "folate_ug": 172, "calcium_mg": 49 }
+    },
+    "spinach_cooked": {
+      "label": "Spinat gekocht",
+      "per100g": { "kcal": 23, "protein_g": 3.0, "carbs_g": 3.8, "fat_g": 0.3, "fiber_g": 2.4, "iron_mg": 3.6, "calcium_mg": 136, "vit_c_mg": 9.8, "folate_ug": 146, "magnesium_mg": 87 }
+    },
+    "broccoli_cooked": {
+      "label": "Brokkoli gekocht",
+      "per100g": { "kcal": 35, "protein_g": 2.4, "carbs_g": 7.2, "fat_g": 0.4, "fiber_g": 3.3, "iron_mg": 0.7, "vit_c_mg": 64.9, "calcium_mg": 40, "folate_ug": 108 }
+    },
+    "bread_whole_grain": {
+      "label": "Vollkornbrot",
+      "per100g": { "kcal": 247, "protein_g": 13.0, "carbs_g": 41.0, "fat_g": 3.5, "fiber_g": 7.0, "iron_mg": 2.5, "magnesium_mg": 76, "sodium_mg": 510 }
+    },
+    "egg_boiled": {
+      "label": "Ei gekocht",
+      "per100g": { "kcal": 155, "protein_g": 12.6, "carbs_g": 1.1, "fat_g": 10.6, "iron_mg": 1.2, "vit_b12_ug": 1.1, "vit_d_ug": 2.2, "calcium_mg": 50 }
+    },
+    "chicken_breast_cooked": {
+      "label": "Hähnchenbrust gegart",
+      "per100g": { "kcal": 165, "protein_g": 31.0, "carbs_g": 0, "fat_g": 3.6, "iron_mg": 1.0, "vit_b12_ug": 0.3, "magnesium_mg": 29 }
+    },
+    "salmon_cooked": {
+      "label": "Lachs gegart",
+      "per100g": { "kcal": 208, "protein_g": 20.0, "carbs_g": 0, "fat_g": 13.0, "vit_b12_ug": 2.8, "vit_d_ug": 11.0, "omega3_g": 2.3, "iron_mg": 0.3 }
+    },
+    "tofu_firm": {
+      "label": "Tofu fest",
+      "per100g": { "kcal": 144, "protein_g": 17.0, "carbs_g": 2.8, "fat_g": 8.7, "calcium_mg": 350, "iron_mg": 2.7, "magnesium_mg": 58 }
+    },
+    "yogurt_plain": {
+      "label": "Joghurt natur",
+      "per100g": { "kcal": 61, "protein_g": 3.5, "carbs_g": 4.7, "fat_g": 3.3, "calcium_mg": 121, "vit_b12_ug": 0.4 }
+    },
+    "cheese_gouda": {
+      "label": "Gouda",
+      "per100g": { "kcal": 356, "protein_g": 25.0, "carbs_g": 2.2, "fat_g": 27.4, "calcium_mg": 700, "sodium_mg": 819, "vit_b12_ug": 1.5 }
+    },
+    "butter": {
+      "label": "Butter",
+      "per100g": { "kcal": 717, "protein_g": 0.9, "carbs_g": 0.1, "fat_g": 81.1, "saturated_fat_g": 51.0, "vit_d_ug": 1.5, "calcium_mg": 24 }
+    },
+    "olive_oil": {
+      "label": "Olivenöl",
+      "per100g": { "kcal": 884, "protein_g": 0, "carbs_g": 0, "fat_g": 100.0, "saturated_fat_g": 13.8 }
+    },
+    "apple": {
+      "label": "Apfel",
+      "per100g": { "kcal": 52, "protein_g": 0.3, "carbs_g": 13.8, "fat_g": 0.2, "fiber_g": 2.4, "vit_c_mg": 4.6 }
+    },
+    "banana": {
+      "label": "Banane",
+      "per100g": { "kcal": 89, "protein_g": 1.1, "carbs_g": 22.8, "fat_g": 0.3, "fiber_g": 2.6, "magnesium_mg": 27, "vit_c_mg": 8.7 }
+    },
+    "oats_dry": {
+      "label": "Haferflocken trocken",
+      "per100g": { "kcal": 389, "protein_g": 16.9, "carbs_g": 66.3, "fat_g": 6.9, "fiber_g": 10.6, "iron_mg": 4.7, "magnesium_mg": 177, "zinc_mg": 4.0 }
+    },
+    "almonds": {
+      "label": "Mandeln",
+      "per100g": { "kcal": 579, "protein_g": 21.2, "carbs_g": 21.6, "fat_g": 49.9, "fiber_g": 12.5, "calcium_mg": 269, "magnesium_mg": 270, "iron_mg": 3.7 }
+    },
+    "coffee_black": {
+      "label": "Kaffee schwarz",
+      "per100g": { "kcal": 2, "protein_g": 0.3, "carbs_g": 0, "fat_g": 0, "magnesium_mg": 7 }
+    },
+    "matcha_latte_oat": {
+      "label": "Matcha Latte mit Hafermilch",
+      "per100g": { "kcal": 45, "protein_g": 0.8, "carbs_g": 6.7, "fat_g": 1.5, "calcium_mg": 120 }
+    }
+  }
+}

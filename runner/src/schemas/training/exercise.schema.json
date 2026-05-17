@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "exercise.schema.json",
+  "title": "TrainingExerciseV1",
+  "description": "Canonical exercise definition. The exercise library is the stable reference for plan prescriptions and set logs. New entries added via UI/admin script — no enum migration needed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "display_de",
+    "movement_pattern",
+    "equipment"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/exercise/v1" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,49}$",
+      "description": "Stable lower-snake_case identifier. Never renamed once shipped."
+    },
+    "display_de": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "display_en": { "type": ["string", "null"], "maxLength": 60 },
+    "movement_pattern": {
+      "enum": [
+        "squat",
+        "hinge",
+        "push_horizontal",
+        "push_vertical",
+        "pull_horizontal",
+        "pull_vertical",
+        "carry",
+        "lunge",
+        "core_anti_extension",
+        "core_anti_rotation",
+        "core_anti_lateral_flexion",
+        "isolation_lower",
+        "isolation_upper",
+        "conditioning",
+        "mobility"
+      ]
+    },
+    "primary_muscles": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z_]*$" },
+      "default": []
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "bodyweight",
+          "barbell",
+          "dumbbell",
+          "kettlebell",
+          "cable",
+          "machine",
+          "smith",
+          "band",
+          "trap_bar",
+          "landmine",
+          "ez_bar",
+          "pull_up_bar",
+          "box",
+          "bench",
+          "sled",
+          "ergometer",
+          "treadmill",
+          "pool",
+          "open_water",
+          "outdoor",
+          "other"
+        ]
+      },
+      "minItems": 1
+    },
+    "substitutes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "default": [],
+      "description": "Other exercise_ids that load the same pattern with different equipment / contraindications."
+    },
+    "contraindications": {
+      "type": "array",
+      "items": { "$ref": "pain-flag.schema.json#/definitions/LocationCode" },
+      "default": [],
+      "description": "Pain location codes for which this exercise should be substituted or avoided."
+    },
+    "unilateral": { "type": "boolean", "default": false },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "default": []
+    },
+    "notes_de": { "type": ["string", "null"], "maxLength": 480 }
+  }
+}

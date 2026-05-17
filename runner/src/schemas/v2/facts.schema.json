@@ -1,0 +1,347 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "facts.schema.json",
+  "title": "FactsBundleV2",
+  "description": "Deterministic facts bundle assembled from raw GadgetBridge samples for a single period_key. Pure data, no narrative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "period_key",
+    "generated_at",
+    "data_window",
+    "samples_seen",
+    "user",
+    "device",
+    "sleep",
+    "cardio",
+    "activity",
+    "stress",
+    "body",
+    "anomalies",
+    "workouts",
+    "ecg",
+    "journal",
+    "meal",
+    "cycle"
+  ],
+  "properties": {
+    "schema_version": { "enum": ["facts/v2", "facts/v2.1"] },
+    "period_key": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date YYYY-MM-DD identifying the period the bundle covers."
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "data_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_iso", "end_iso", "tz"],
+      "properties": {
+        "start_iso": { "type": "string", "format": "date-time" },
+        "end_iso": { "type": "string", "format": "date-time" },
+        "tz": { "type": "string", "description": "IANA timezone identifier, e.g. Europe/Berlin." }
+      }
+    },
+    "samples_seen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sleep_rows", "hr_rows", "spo2_rows", "stress_rows", "step_rows", "weight_rows"],
+      "properties": {
+        "sleep_rows": { "type": "integer", "minimum": 0 },
+        "hr_rows": { "type": "integer", "minimum": 0 },
+        "spo2_rows": { "type": "integer", "minimum": 0 },
+        "stress_rows": { "type": "integer", "minimum": 0 },
+        "step_rows": { "type": "integer", "minimum": 0 },
+        "weight_rows": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "user": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["age", "sex", "height_cm"],
+      "properties": {
+        "age": { "type": ["integer", "null"], "minimum": 0 },
+        "sex": { "type": ["string", "null"], "enum": ["m", "f", "x", null] },
+        "height_cm": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "firmware", "wear_seconds_24h"],
+      "properties": {
+        "model": { "type": ["string", "null"] },
+        "firmware": { "type": ["string", "null"] },
+        "wear_seconds_24h": { "type": ["integer", "null"], "minimum": 0 },
+        "battery": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["min_pct", "max_pct", "mean_pct", "samples"],
+              "properties": {
+                "min_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+                "max_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+                "mean_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+                "samples": { "type": "integer", "minimum": 0 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "sleep": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["metrics", "baseline", "signal_quality"],
+          "properties": {
+            "metrics": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": [
+                "tst_min",
+                "sleep_efficiency_pct",
+                "rem_min",
+                "deep_min",
+                "light_min",
+                "awake_min",
+                "rhr_sleep_bpm",
+                "rmssd_ms",
+                "spo2_min_pct"
+              ],
+              "properties": {
+                "tst_min": { "type": ["number", "null"] },
+                "sleep_efficiency_pct": { "type": ["number", "null"] },
+                "rem_min": { "type": ["number", "null"] },
+                "deep_min": { "type": ["number", "null"] },
+                "light_min": { "type": ["number", "null"] },
+                "awake_min": { "type": ["number", "null"] },
+                "rhr_sleep_bpm": { "type": ["number", "null"] },
+                "rmssd_ms": { "type": ["number", "null"] },
+                "spo2_min_pct": { "type": ["number", "null"] },
+                "breath_rate_mean": { "type": ["number", "null"] },
+                "wake_count": { "type": ["integer", "null"], "minimum": 0 },
+                "rdi": { "type": ["number", "null"] },
+                "hr_min_sleep": { "type": ["number", "null"] },
+                "hr_max_sleep": { "type": ["number", "null"] },
+                "sleep_latency_min": { "type": ["number", "null"], "minimum": 0 },
+                "apnea_events_count": { "type": ["integer", "null"], "minimum": 0 },
+                "apnea_max_level": { "type": ["integer", "null"], "minimum": 0, "maximum": 3 }
+              }
+            },
+            "baseline": { "$ref": "#/definitions/BaselineMap" },
+            "signal_quality": { "$ref": "#/definitions/SignalQuality" }
+          }
+        }
+      ]
+    },
+    "cardio": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["metrics", "baseline", "signal_quality"],
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rhr_day_bpm", "hr_max_bpm", "hr_mean_bpm", "spo2_mean_pct"],
+          "properties": {
+            "rhr_day_bpm": { "type": ["number", "null"] },
+            "hr_max_bpm": { "type": ["number", "null"] },
+            "hr_mean_bpm": { "type": ["number", "null"] },
+            "spo2_mean_pct": { "type": ["number", "null"] }
+          }
+        },
+        "baseline": { "$ref": "#/definitions/BaselineMap" },
+        "signal_quality": { "$ref": "#/definitions/SignalQuality" },
+        "hrv_series": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ts_iso", "value_ms"],
+                "properties": {
+                  "ts_iso": { "type": "string", "format": "date-time" },
+                  "value_ms": { "type": "number" }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics", "baseline", "signal_quality"],
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["steps", "active_minutes", "sedentary_minutes", "calories_kcal"],
+          "properties": {
+            "steps": { "type": ["integer", "null"], "minimum": 0 },
+            "active_minutes": { "type": ["integer", "null"], "minimum": 0 },
+            "sedentary_minutes": { "type": ["integer", "null"], "minimum": 0 },
+            "calories_kcal": { "type": ["number", "null"], "minimum": 0 },
+            "distance_m": { "type": ["number", "null"], "minimum": 0 }
+          }
+        },
+        "baseline": { "$ref": "#/definitions/BaselineMap" },
+        "signal_quality": { "$ref": "#/definitions/SignalQuality" }
+      }
+    },
+    "stress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics", "baseline", "signal_quality"],
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stress_mean", "stress_max", "high_stress_minutes"],
+          "properties": {
+            "stress_mean": { "type": ["number", "null"] },
+            "stress_max": { "type": ["number", "null"] },
+            "high_stress_minutes": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        },
+        "baseline": { "$ref": "#/definitions/BaselineMap" },
+        "signal_quality": { "$ref": "#/definitions/SignalQuality" }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics", "baseline", "signal_quality"],
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["weight_kg", "body_fat_pct", "bmi"],
+          "properties": {
+            "weight_kg": { "type": ["number", "null"], "minimum": 0 },
+            "body_fat_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "bmi": { "type": ["number", "null"], "minimum": 0 },
+            "skin_temp_median": { "type": ["number", "null"] },
+            "skin_temp_delta_c": { "type": ["number", "null"] }
+          }
+        },
+        "baseline": { "$ref": "#/definitions/BaselineMap" },
+        "signal_quality": { "$ref": "#/definitions/SignalQuality" }
+      }
+    },
+    "anomalies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hr_overflow_rows", "negative_step_rows", "data_notes"],
+      "properties": {
+        "hr_overflow_rows": { "type": "integer", "minimum": 0 },
+        "negative_step_rows": { "type": "integer", "minimum": 0 },
+        "data_notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "workouts": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/definitions/WorkoutFactsItem" }
+        }
+      ]
+    },
+    "ecg": { "type": "null" },
+    "journal": { "type": "null" },
+    "meal": { "type": "null" },
+    "cycle": { "type": "null" }
+  },
+  "definitions": {
+    "BaselineCore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["median", "mad", "n", "window_days"],
+      "properties": {
+        "median": { "type": ["number", "null"] },
+        "mad": { "type": ["number", "null"] },
+        "n": { "type": "integer", "minimum": 0 },
+        "window_days": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "BaselineMap": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/BaselineCore" }
+        }
+      ]
+    },
+    "SignalQuality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "issues"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "issues": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "WorkoutHRStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avg", "max", "min", "samples", "zone_secs", "drift_bpm_per_min"],
+      "properties": {
+        "avg": { "type": ["number", "null"] },
+        "max": { "type": ["number", "null"] },
+        "min": { "type": ["number", "null"] },
+        "samples": { "type": "integer", "minimum": 0 },
+        "zone_secs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["z1", "z2", "z3", "z4", "z5"],
+          "properties": {
+            "z1": { "type": "integer", "minimum": 0 },
+            "z2": { "type": "integer", "minimum": 0 },
+            "z3": { "type": "integer", "minimum": 0 },
+            "z4": { "type": "integer", "minimum": 0 },
+            "z5": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "drift_bpm_per_min": { "type": ["number", "null"] }
+      }
+    },
+    "WorkoutFactsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "start_iso", "duration_s", "hr"],
+      "properties": {
+        "id": { "type": "integer" },
+        "type": { "type": "integer" },
+        "start_iso": { "type": "string", "format": "date-time" },
+        "duration_s": { "type": "integer", "minimum": 0 },
+        "distance_m": { "type": ["number", "null"], "minimum": 0 },
+        "steps": { "type": ["integer", "null"], "minimum": 0 },
+        "calories_kcal": { "type": ["number", "null"], "minimum": 0 },
+        "workout_load": { "type": ["number", "null"] },
+        "aerobic_effect": { "type": ["number", "null"] },
+        "recovery_h": { "type": ["number", "null"] },
+        "hr": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/definitions/WorkoutHRStats" }
+          ]
+        }
+      }
+    }
+  }
+}

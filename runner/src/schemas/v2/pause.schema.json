@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pause.schema.json",
+  "title": "PauseStateV1",
+  "description": "Pause toggle, 'I feel fine' override, language preference, and step-change detection state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "paused",
+    "i_feel_fine",
+    "i_feel_fine_until_iso",
+    "language",
+    "step_change_detected_on"
+  ],
+  "properties": {
+    "schema_version": { "const": "state/v1" },
+    "paused": { "type": "boolean" },
+    "i_feel_fine": { "type": "boolean" },
+    "i_feel_fine_until_iso": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ],
+      "description": "Auto-expires at midnight; set by UI when the user activates 'I feel fine'."
+    },
+    "language": { "type": "string", "enum": ["de", "en"] },
+    "step_change_detected_on": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date" }
+      ],
+      "description": "ISO date of the last DST/firmware/travel step-change detection."
+    }
+  }
+}

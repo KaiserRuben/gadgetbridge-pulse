@@ -1,0 +1,41 @@
+{
+  "$id": "enrich-output.schema.json",
+  "title": "NutritionEnrichOutput",
+  "description": "Stage B — locked strict schema for the per-100g nutrition lookup LLM call. All 10 nutrient fields required (no optional micros at generation time — the model must produce a value, even 0). Runner wraps this with cache envelope (source='llm', model, captured_at) before persisting. See docs/NUTRITION_VLM_VALIDATION.md §3.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["food_key", "label_de", "per_100g", "notes"],
+  "properties": {
+    "food_key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 60 },
+    "label_de": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "per_100g": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kcal",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "fiber_g",
+        "iron_mg",
+        "vit_c_mg",
+        "vit_b12_ug",
+        "calcium_mg",
+        "magnesium_mg"
+      ],
+      "properties": {
+        "kcal": { "type": "number", "minimum": 0, "maximum": 900 },
+        "protein_g": { "type": "number", "minimum": 0, "maximum": 100 },
+        "carbs_g": { "type": "number", "minimum": 0, "maximum": 100 },
+        "fat_g": { "type": "number", "minimum": 0, "maximum": 100 },
+        "fiber_g": { "type": "number", "minimum": 0, "maximum": 50 },
+        "iron_mg": { "type": "number", "minimum": 0, "maximum": 50 },
+        "vit_c_mg": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "vit_b12_ug": { "type": "number", "minimum": 0, "maximum": 200 },
+        "calcium_mg": { "type": "number", "minimum": 0, "maximum": 2000 },
+        "magnesium_mg": { "type": "number", "minimum": 0, "maximum": 1000 }
+      }
+    },
+    "notes": { "type": "string", "maxLength": 200 }
+  }
+}

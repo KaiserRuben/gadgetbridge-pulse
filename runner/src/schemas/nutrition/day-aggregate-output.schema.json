@@ -1,0 +1,53 @@
+{
+  "$id": "day-aggregate-output.schema.json",
+  "title": "NutritionDayAggregateOutput",
+  "description": "Stage C — locked strict schema for the multi-image day-aggregator LLM call. Generation shape: just `day_pattern.events[]` + `day_pattern.flags[]`. The runner wraps this with totals, delta_vs_target, period_key, meals_count, day_complete (all deterministically computable from the meal rows). See docs/NUTRITION_VLM_VALIDATION.md §4.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["day_pattern"],
+  "properties": {
+    "day_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "flags"],
+      "properties": {
+        "events": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "started_at", "ended_at", "meal_ids", "summary"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["single_meal", "multi_course", "snacking", "drink_round"]
+              },
+              "started_at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+              },
+              "ended_at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+              },
+              "meal_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": { "type": "string", "pattern": "^m[0-9]+$" }
+              },
+              "summary": { "type": "string", "minLength": 1, "maxLength": 240 }
+            }
+          }
+        },
+        "flags": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 }
+        }
+      }
+    }
+  }
+}

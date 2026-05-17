@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "labs.schema.json",
+  "title": "LabsV1",
+  "description": "Opt-in feature flags for experimental lab features.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "features"],
+  "properties": {
+    "schema_version": { "const": "state/v1" },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cycle",
+        "training_load",
+        "illness_watch",
+        "similar_day_search",
+        "meal_photo",
+        "voice_journal",
+        "ecg"
+      ],
+      "properties": {
+        "cycle": { "type": "boolean" },
+        "training_load": { "type": "boolean" },
+        "illness_watch": { "type": "boolean" },
+        "similar_day_search": { "type": "boolean" },
+        "meal_photo": { "type": "boolean" },
+        "voice_journal": { "type": "boolean" },
+        "ecg": { "type": "boolean" }
+      }
+    }
+  }
+}

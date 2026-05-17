@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "training-plan.schema.json",
+  "title": "TrainingPlanV1",
+  "description": "Generic training plan document. Holds arbitrary phases, each with arbitrary session templates referencing the exercise library. Independent of any single user's use case.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "status",
+    "created_at",
+    "phases",
+    "current_phase_id"
+  ],
+  "properties": {
+    "schema_version": { "const": "training/plan/v1" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "status": { "enum": ["draft", "active", "archived"] },
+    "language": { "type": "string", "enum": ["de", "en"], "default": "de" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/Phase" }
+    },
+    "current_phase_id": { "type": "string", "minLength": 1 },
+    "cardio_guidance": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/CardioGuidance" }
+      ]
+    },
+    "global_constraints": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 240 },
+      "default": []
+    },
+    "injury_protocol": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/InjuryRule" },
+      "default": []
+    },
+    "tracking_cadence": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/TrackingCadence" }
+      ]
+    },
+    "todos": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 240 },
+      "default": []
+    },
+    "starting_position": {
+      "type": ["string", "null"],
+      "maxLength": 2000,
+      "description": "Freeform narrative: detraining notes, injury history, goals. Read-only context for the LLM."
+    },
+    "strategy_overview": {
+      "type": ["string", "null"],
+      "maxLength": 2000,
+      "description": "High-level strategy across all phases. Read-only context."
+    }
+  },
+  "definitions": {
+    "Phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "session_templates"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "label_long": { "type": ["string", "null"], "maxLength": 160 },
+        "goal": { "type": ["string", "null"], "maxLength": 240 },
+        "started_at": { "type": ["string", "null"], "format": "date" },
+        "planned_through": { "type": ["string", "null"], "format": "date" },
+        "intensity_guidance": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/definitions/IntensityGuidance" }
+          ]
+        },
+        "progression_rule": { "type": ["string", "null"], "maxLength": 480 },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 240 },
+          "default": []
+        },
+        "entry_criteria": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/EntryCriterion" },
+          "default": []
+        },
+        "session_templates": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/SessionTemplate" }
+        },
+        "schedule_hint": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/definitions/ScheduleHint" }
+          ]
+        },
+        "character": { "type": ["string", "null"], "maxLength": 200 }
+      }
+    },
+    "IntensityGuidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rpe_floor": { "type": ["number", "null"], "minimum": 1, "maximum": 10 },
+        "rpe_ceiling": { "type": ["number", "null"], "minimum": 1, "maximum": 10 },
+        "rir_min": { "type": ["number", "null"], "minimum": 0, "maximum": 5 },
+        "note": { "type": ["string", "null"], "maxLength": 240 }
+      }
+    },
+    "EntryCriterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "maxLength": 240 },
+        "kind": {
+          "enum": ["duration", "load", "symptom_absence", "metric", "manual", "other"],
+          "default": "manual"
+        },
+        "param_json": { "type": "object", "additionalProperties": true, "default": {} }
+      }
+    },
+    "SessionTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "exercises"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": {
+          "enum": ["strength", "conditioning", "mobility", "recovery", "custom"],
+          "default": "strength"
+        },
+        "estimated_duration_min": { "type": ["number", "null"], "minimum": 5, "maximum": 240 },
+        "warmup_text": { "type": ["string", "null"], "maxLength": 480 },
+        "cooldown_text": { "type": ["string", "null"], "maxLength": 480 },
+        "exercises": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/PrescribedExercise" }
+        }
+      }
+    },
+    "PrescribedExercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exercise_id", "order_idx", "prescription"],
+      "properties": {
+        "exercise_id": { "type": "string", "minLength": 1 },
+        "order_idx": { "type": "number", "minimum": 0 },
+        "prescription": { "$ref": "#/definitions/Prescription" },
+        "notes": { "type": ["string", "null"], "maxLength": 240 },
+        "warmup_only": { "type": "boolean", "default": false }
+      }
+    },
+    "Prescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sets": { "type": ["number", "null"], "minimum": 1, "maximum": 20 },
+        "reps_min": { "type": ["number", "null"], "minimum": 1 },
+        "reps_max": { "type": ["number", "null"], "minimum": 1 },
+        "reps_per_side": { "type": "boolean", "default": false },
+        "load_kg_min": { "type": ["number", "null"], "minimum": 0 },
+        "load_kg_max": { "type": ["number", "null"], "minimum": 0 },
+        "load_note": { "type": ["string", "null"], "maxLength": 80 },
+        "duration_sec": { "type": ["number", "null"], "minimum": 1 },
+        "distance_m": { "type": ["number", "null"], "minimum": 0 },
+        "rpe_target": { "type": ["number", "null"], "minimum": 1, "maximum": 10 },
+        "rest_sec": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "ScheduleHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weekly_pattern": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "string",
+            "description": "session_template_id, 'cardio', 'rest', or 'flex' (one entry per weekday Mon-Sun)"
+          }
+        },
+        "frequency_per_week": { "type": ["number", "null"], "minimum": 1, "maximum": 14 }
+      }
+    },
+    "CardioGuidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frequency_per_week": { "type": ["number", "null"], "minimum": 0, "maximum": 14 },
+        "z2_minutes_target": { "type": ["number", "null"], "minimum": 0 },
+        "z3_allowed": { "type": "boolean", "default": false },
+        "banned_modes": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "priority_modes": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "note": { "type": ["string", "null"], "maxLength": 480 }
+      }
+    },
+    "InjuryRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symptom", "action"],
+      "properties": {
+        "symptom": { "type": "string", "maxLength": 200 },
+        "action": { "type": "string", "maxLength": 200 },
+        "trigger_location_codes": {
+          "type": "array",
+          "items": { "$ref": "pain-flag.schema.json#/definitions/LocationCode" },
+          "default": []
+        },
+        "severity": { "enum": ["info", "warn", "critical"], "default": "warn" }
+      }
+    },
+    "TrackingCadence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "session_logging": { "type": ["string", "null"], "maxLength": 240 },
+        "weekly_review_dow": { "type": "number", "minimum": 0, "maximum": 6 },
+        "measurement_interval_weeks": { "type": ["number", "null"], "minimum": 1 }
+      }
+    }
+  }
+}
