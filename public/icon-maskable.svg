@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pulse">
+  <title>Pulse</title>
+  <defs>
+    <linearGradient id="ringGradM" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="hsl(252 70% 66%)" stop-opacity="1"/>
+      <stop offset="100%" stop-color="hsl(278 64% 64%)" stop-opacity="0.92"/>
+    </linearGradient>
+    <radialGradient id="dotGlowM" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"  stop-color="hsl(195 54% 70%)" stop-opacity="1"/>
+      <stop offset="60%" stop-color="hsl(195 54% 60%)" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="hsl(195 54% 60%)" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- full-bleed dark backdrop (square; launcher will mask to platform shape) -->
+  <rect width="512" height="512" fill="#0a0a0a"/>
+
+  <!-- safe zone is a centered circle of radius ~205 (≈ 80% of 256). All glyph art lives inside this. -->
+
+  <!-- track ring (scaled to fit safe zone) -->
+  <circle cx="256" cy="256" r="134" fill="none"
+          stroke="hsl(240 5% 22%)" stroke-width="22"/>
+
+  <!-- progress ring: sweep ~72% -->
+  <circle cx="256" cy="256" r="134" fill="none"
+          stroke="url(#ringGradM)" stroke-width="22" stroke-linecap="round"
+          stroke-dasharray="841.95" stroke-dashoffset="235.75"
+          transform="rotate(-90 256 256)"/>
+
+  <!-- inner concentric ring (echo) -->
+  <circle cx="256" cy="256" r="94" fill="none"
+          stroke="hsl(240 5% 18%)" stroke-width="5"/>
+
+  <!-- pulse dot at the leading edge of the sweep -->
+  <circle cx="256" cy="122" r="28" fill="url(#dotGlowM)"/>
+  <circle cx="256" cy="122" r="11" fill="hsl(195 54% 75%)"/>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pulse">
+  <title>Pulse</title>
+  <defs>
+    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="hsl(252 70% 66%)" stop-opacity="1"/>
+      <stop offset="100%" stop-color="hsl(278 64% 64%)" stop-opacity="0.92"/>
+    </linearGradient>
+    <radialGradient id="dotGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"  stop-color="hsl(195 54% 70%)" stop-opacity="1"/>
+      <stop offset="60%" stop-color="hsl(195 54% 60%)" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="hsl(195 54% 60%)" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- dark backdrop -->
+  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+
+  <!-- track ring (faint border-tone) -->
+  <circle cx="256" cy="256" r="168" fill="none"
+          stroke="hsl(240 5% 22%)" stroke-width="28"/>
+
+  <!-- progress ring: sweep ~72% (matches a healthy score) -->
+  <circle cx="256" cy="256" r="168" fill="none"
+          stroke="url(#ringGrad)" stroke-width="28" stroke-linecap="round"
+          stroke-dasharray="1055.6" stroke-dashoffset="295.6"
+          transform="rotate(-90 256 256)"/>
+
+  <!-- inner concentric ring (echo) -->
+  <circle cx="256" cy="256" r="118" fill="none"
+          stroke="hsl(240 5% 18%)" stroke-width="6"/>
+
+  <!-- pulse dot at the leading edge of the sweep (top, where ring starts) -->
+  <circle cx="256" cy="88"  r="34" fill="url(#dotGlow)"/>
+  <circle cx="256" cy="88"  r="14" fill="hsl(195 54% 75%)"/>
+</svg>
