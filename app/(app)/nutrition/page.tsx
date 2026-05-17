@@ -1,6 +1,11 @@
 import "server-only";
 import Link from "next/link";
 
+// pulse.db is mutated continuously (uploads, classify results, edits). A
+// statically-generated /nutrition would serve build-time HTML where photo_path
+// can still be null — the page must re-render per request.
+export const dynamic = "force-dynamic";
+
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";

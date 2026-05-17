@@ -1,6 +1,8 @@
 import "server-only";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
