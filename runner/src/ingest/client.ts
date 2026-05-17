@@ -21,6 +21,9 @@ import { log } from "../logger.ts";
 import { enqueue } from "./outbox.ts";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
+/** Read paths (GET /api/nutrition/pending, claim) tolerate cold-start JIT
+ *  on the Pi's Next.js routes — 5s aborts a first-hit compile. */
+const READ_TIMEOUT_MS = 30_000;
 
 let _emptyUrlWarned = false;
 
@@ -328,7 +331,7 @@ async function piGet<T>(pathAndQuery: string): Promise<
   }
   const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}${pathAndQuery}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       method: "GET",
@@ -382,7 +385,7 @@ export async function claimMeal(mealId: string): Promise<ClaimResult> {
   if (!config.ingestBaseUrl) return { ok: false, reason: "ingest_url_empty" };
   const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/nutrition/claim`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       method: "POST",
