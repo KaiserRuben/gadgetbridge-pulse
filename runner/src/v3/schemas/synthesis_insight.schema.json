@@ -1,0 +1,264 @@
+{
+  "$id": "synthesis_insight.schema.json",
+  "title": "SynthesisInsightV3",
+  "description": "Day-level synthesis. Consumes sleep + recovery + activity insights and produces the unified daily verdict, headline, summary, top action, and key insight. Cites use-case-specific KPI values verbatim.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "verdict_band",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "key_insight",
+    "top_action_today",
+    "domain_pointers",
+    "contradictions",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "use_case/synthesis/v1"
+    },
+    "language": {
+      "enum": [
+        "de",
+        "en"
+      ]
+    },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Single completion flag. true = artifact still in-flight or failed validation. Flipped to false only by the writer as the very last step before atomic rename."
+    },
+    "abstain": {
+      "type": "boolean"
+    },
+    "abstain_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verdict_band": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "above_usual",
+        "steady",
+        "below_usual",
+        null
+      ],
+      "description": "Day-level verdict. Aligned with day_score_deterministic threshold (≥65 → above_usual, ≤35 → below_usual, else steady) UNLESS use-case insights strongly disagree (then explain in reasoning of headline/summary)."
+    },
+    "headline": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80,
+      "description": "Verb-led day headline. Cites the dominant signal across domains."
+    },
+    "summary_short": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 120,
+      "description": "Mobile day summary, ≤120 chars. Must mention at least one concrete value across domains."
+    },
+    "summary_long": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Desktop day summary, ≤240 chars. Must reference at least 2 domain KPI values."
+    },
+    "key_insight": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "One-sentence cross-domain insight. The non-obvious connection (e.g. high training load → low RMSSD → poor sleep). Must cite ≥2 values from different domains."
+    },
+    "top_action_today": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "reasoning",
+        "source_domain",
+        "anchor",
+        "tiny",
+        "why",
+        "horizon"
+      ],
+      "description": "Single highest-priority action across all domains. Picked from use-case suggestions (cite source_domain) or composed from cross-domain signal.",
+      "properties": {
+        "reasoning": {
+          "type": "string",
+          "minLength": 20,
+          "description": "Why this is THE top action across all domains. Reference the signals."
+        },
+        "source_domain": {
+          "enum": [
+            "sleep",
+            "recovery",
+            "activity",
+            "cross_domain"
+          ]
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 60
+        },
+        "tiny": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 80
+        },
+        "why": {
+          "type": "string",
+          "minLength": 8
+        },
+        "horizon": {
+          "enum": [
+            "today",
+            "tonight"
+          ]
+        }
+      }
+    },
+    "domain_pointers": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "One pointer per domain (sleep, recovery, activity) — surfaces the most salient KPI/finding from each use case for drill-down navigation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "domain",
+          "label_de",
+          "kpi_id",
+          "kpi_value",
+          "kpi_band",
+          "callout"
+        ],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Why this KPI is the salient one for this domain today."
+          },
+          "domain": {
+            "enum": [
+              "sleep",
+              "recovery",
+              "activity"
+            ]
+          },
+          "label_de": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40
+          },
+          "kpi_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,40}$"
+          },
+          "kpi_value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "kpi_band": {
+            "enum": [
+              "above_usual",
+              "steady",
+              "below_usual"
+            ]
+          },
+          "callout": {
+            "type": "string",
+            "minLength": 8,
+            "description": "One-line salient hook for the drill-down (cites a concrete number)."
+          }
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "description": "Detected conflicts between use-case suggestions (e.g. sleep says 'rest', activity says 'train'). Empty array if none.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "domains",
+          "conflict",
+          "resolution"
+        ],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "minLength": 20
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "sleep",
+                "recovery",
+                "activity"
+              ]
+            },
+            "minItems": 2,
+            "maxItems": 3
+          },
+          "conflict": {
+            "type": "string",
+            "minLength": 8,
+            "description": "What's the conflict in plain words."
+          },
+          "resolution": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Which side wins and why. Cite the determining signal."
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "reasoning"
+      ],
+      "properties": {
+        "reasoning": {
+          "type": "string",
+          "minLength": 20,
+          "description": "Why this confidence: averaged from per-domain confidences, adjusted for cross-domain coherence."
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

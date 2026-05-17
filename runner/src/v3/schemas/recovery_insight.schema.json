@@ -1,0 +1,231 @@
+{
+  "$id": "recovery_insight.schema.json",
+  "title": "RecoveryInsightV3",
+  "description": "Recovery use-case insight. Each prose field cites ≥1 concrete number from the package. KPI and suggestion items carry their own 'reasoning' first property.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "analysis_today",
+    "analysis_context",
+    "suggestions_today",
+    "suggestions_long_term",
+    "kpis",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "use_case/recovery/v1"
+    },
+    "language": {
+      "enum": [
+        "de",
+        "en"
+      ]
+    },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Single completion flag. true = artifact still in-flight or failed validation. Flipped to false only by the writer as the very last step before atomic rename."
+    },
+    "abstain": {
+      "type": "boolean"
+    },
+    "abstain_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Why abstain. Required string if abstain=true (cite data_quality numbers); null otherwise."
+    },
+    "headline": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80,
+      "description": "Verb-led headline. Null if abstain=true."
+    },
+    "summary_short": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 120,
+      "description": "Mobile summary, ≤120 chars. Must mention at least one concrete value (HRV, RHR, stress)."
+    },
+    "summary_long": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Desktop summary, ≤200 chars. Must include at least one baseline/delta reference."
+    },
+    "analysis_today": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Concrete description of today's autonomic state (HRV trend, RHR-drift = day−sleep, stress distribution, SpO₂). Must cite ≥2 numbers."
+    },
+    "analysis_context": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "How today sits vs last 2 days AND 30d baseline. Must cite ≥1 z-score AND ≥1 short-term comparison vs yesterday/day-before."
+    },
+    "suggestions_today": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "anchor",
+          "tiny",
+          "why",
+          "horizon"
+        ],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Why this action right now. Cite the data signal."
+          },
+          "anchor": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 60,
+            "description": "The signal (e.g. 'RMSSD z=-2.7, RHR-Drift +6 bpm'). NOT the action."
+          },
+          "tiny": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 80,
+            "description": "The action, imperative, concrete."
+          },
+          "why": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Mechanism / expected benefit. Different from 'tiny'."
+          },
+          "horizon": {
+            "enum": [
+              "today",
+              "tonight"
+            ]
+          }
+        }
+      }
+    },
+    "suggestions_long_term": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "horizon",
+          "action",
+          "why"
+        ],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "minLength": 20
+          },
+          "horizon": {
+            "enum": [
+              "this_week",
+              "this_month"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "minLength": 8
+          },
+          "why": {
+            "type": "string",
+            "minLength": 12
+          }
+        }
+      }
+    },
+    "kpis": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "description": "First 3 are core in this exact order: recovery_score, autonomic_balance, stress_load. Optional 1-2 extras after.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "id",
+          "label_de",
+          "value",
+          "band"
+        ],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "minLength": 20,
+            "description": "How value and band were derived. Cite numbers."
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,40}$",
+            "description": "snake_case. First 3 must be: recovery_score, autonomic_balance, stress_load."
+          },
+          "label_de": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "band": {
+            "enum": [
+              "above_usual",
+              "steady",
+              "below_usual"
+            ]
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "reasoning"
+      ],
+      "properties": {
+        "reasoning": {
+          "type": "string",
+          "minLength": 20
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

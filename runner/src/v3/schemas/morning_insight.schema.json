@@ -1,0 +1,201 @@
+{
+  "$id": "morning_insight.schema.json",
+  "title": "MorningInsightV1",
+  "description": "Morning briefing emitted on `sleep_complete`. Bundles the night's sleep + today's recovery + plan + recent training + pain history into 'spend your day like this' guidance. Coaching cards (lever trajectories) live here too — Stage 5 was retired into this cluster.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "incomplete",
+    "language",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "verdict_band",
+    "training_recommendation",
+    "day_shape",
+    "care_for",
+    "levers",
+    "citations",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "use_case/morning/v1"
+    },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Auto-injected. true = artifact still in-flight or failed validation; writer flips to false at atomic-rename time."
+    },
+    "language": {
+      "enum": ["de", "en"]
+    },
+    "abstain": {
+      "type": "boolean"
+    },
+    "abstain_reason": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "headline": {
+      "type": ["string", "null"],
+      "maxLength": 80,
+      "description": "Verb-led one-liner for the home hero (e.g. \"Schone heute das linke Knie und halte Z2 unter 140 bpm.\"). Null when abstain=true."
+    },
+    "summary_short": {
+      "type": ["string", "null"],
+      "maxLength": 140,
+      "description": "Phone-hero subtitle. Cites ≥1 concrete number from the night/morning bundle."
+    },
+    "summary_long": {
+      "type": ["string", "null"],
+      "maxLength": 480,
+      "description": "Desktop hero body, 2-4 sentences, cites ≥2 numbers spanning sleep + recovery + training context."
+    },
+    "verdict_band": {
+      "type": ["string", "null"],
+      "enum": ["above_usual", "steady", "below_usual", null],
+      "description": "Overall readiness band derived deterministically by the runner before the LLM sees the package; LLM may NOT change it."
+    },
+    "training_recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning", "suggested_session_template_id", "justification_de", "alternatives"],
+      "properties": {
+        "reasoning": {
+          "type": "string",
+          "maxLength": 480
+        },
+        "suggested_session_template_id": {
+          "type": ["string", "null"],
+          "maxLength": 60,
+          "description": "Session template id from the active plan, or null when no plan is active / today is rest."
+        },
+        "justification_de": {
+          "type": ["string", "null"],
+          "maxLength": 480,
+          "description": "1-3 Sätze, ≥1 Zahl aus Recovery/Sleep + ≥1 Plan-/Pain-Bezug."
+        },
+        "alternatives": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 60 },
+          "maxItems": 4
+        }
+      }
+    },
+    "day_shape": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "description": "Ordered list of anchored actions across the day. Lets the morning briefing tell the user 'spend your day like this'.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "anchor", "action_de", "horizon"],
+        "properties": {
+          "reasoning": {
+            "type": "string",
+            "maxLength": 280
+          },
+          "anchor": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "action_de": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "horizon": {
+            "enum": ["morning", "midday", "afternoon", "evening", "day"]
+          }
+        }
+      }
+    },
+    "care_for": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 5,
+      "description": "Things to attend to: tender areas, recovery deficits, recurring issues. Locked-language for pain references (verbatim free_text in »…« or omit).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "area_de", "why_de", "action_de"],
+        "properties": {
+          "reasoning": { "type": "string", "maxLength": 280 },
+          "area_de": { "type": "string", "maxLength": 60 },
+          "why_de": { "type": "string", "maxLength": 240 },
+          "action_de": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "levers": {
+      "type": "array",
+      "maxItems": 4,
+      "description": "Replacement for legacy daily/v2.1 coaching_cards. Same wire shape so /coach page renders without UI changes.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "lever", "domain", "confidence", "trajectory", "projection_90d", "tiny_next_step"],
+        "properties": {
+          "reasoning": { "type": "string", "maxLength": 480 },
+          "lever": { "type": "string", "maxLength": 60 },
+          "domain": { "type": "string", "maxLength": 30 },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "trajectory": { "type": "string", "maxLength": 240 },
+          "projection_90d": { "type": "string", "maxLength": 200 },
+          "interpretation": { "type": ["string", "null"], "maxLength": 240 },
+          "tiny_next_step": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["anchor", "tiny", "horizon"],
+            "properties": {
+              "anchor": { "type": "string", "maxLength": 60 },
+              "tiny": { "type": "string", "maxLength": 80 },
+              "horizon": { "enum": ["today", "tonight", "tomorrow", "this_week"] }
+            }
+          }
+        }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref_id", "summary"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "sleep_metric",
+              "recovery_metric",
+              "activity_metric",
+              "workout",
+              "pain_flag",
+              "actual_session",
+              "set_log",
+              "plan_version",
+              "adjustment_proposal",
+              "resolution_note",
+              "lever",
+              "surprise_insight",
+              "other"
+            ]
+          },
+          "ref_id": { "type": "string", "maxLength": 80 },
+          "summary": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": "string", "maxLength": 480 }
+      }
+    }
+  }
+}
