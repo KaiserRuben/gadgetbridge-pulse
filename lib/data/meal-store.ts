@@ -739,6 +739,43 @@ export interface WriteFoodCacheInput {
  * in PULSE_FOOD_NUTRITION and skips the LLM call on every subsequent meal
  * containing the same food_key.
  */
+export interface FoodCacheStats {
+  seed: number;
+  llm: number;
+  /** Newest captured_at across all rows, ISO8601 — null if table empty. */
+  newest_captured_at: string | null;
+}
+
+export function readFoodCacheStats(): FoodCacheStats {
+  const db = pulseDb();
+  if (!db) return { seed: 0, llm: 0, newest_captured_at: null };
+  try {
+    const seed = (
+      db.prepare(`SELECT COUNT(*) AS n FROM PULSE_FOOD_NUTRITION WHERE source = 'seed'`).get() as { n: number }
+    ).n;
+    const llm = (
+      db.prepare(`SELECT COUNT(*) AS n FROM PULSE_FOOD_NUTRITION WHERE source = 'llm'`).get() as { n: number }
+    ).n;
+    const newest = db
+      .prepare(`SELECT MAX(captured_at) AS t FROM PULSE_FOOD_NUTRITION`)
+      .get() as { t: string | null };
+    return { seed, llm, newest_captured_at: newest.t };
+  } catch {
+    return { seed: 0, llm: 0, newest_captured_at: null };
+  }
+}
+
+/**
+ * Drop every LLM-derived per-100g entry. Seed rows stay because they are
+ * the deterministic baseline; only LLM rows expire on user demand (used
+ * during model tuning). Returns the number of rows removed.
+ */
+export function clearLlmFoodCache(): number {
+  const db = getWritableDb();
+  const r = db.prepare(`DELETE FROM PULSE_FOOD_NUTRITION WHERE source = 'llm'`).run();
+  return r.changes;
+}
+
 export function writeFoodCache(input: WriteFoodCacheInput): void {
   const db = getWritableDb();
   db.prepare(

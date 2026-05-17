@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
@@ -11,6 +12,12 @@ import { Pill } from "@/components/ui/pill";
 import { NutrientTargetEditor } from "@/components/nutrition/NutrientTargetEditor";
 import type { NutritionTargets } from "@/lib/nutrition/types";
 
+interface FoodCacheStatsProp {
+  seed: number;
+  llm: number;
+  newest_captured_at: string | null;
+}
+
 /**
  * /nutrition/targets client view. Targets are loaded server-side and passed
  * via props so user-saved overrides reflect on first paint.
@@ -19,10 +26,70 @@ import type { NutritionTargets } from "@/lib/nutrition/types";
  * default) — anyone who needs to clear the food-db cache during pipeline
  * tuning can do so without surfacing the action to casual users.
  */
-export default function TargetsView({ targets }: { targets: NutritionTargets }) {
+export default function TargetsView({
+  targets,
+  foodCacheStats,
+}: {
+  targets: NutritionTargets;
+  foodCacheStats: FoodCacheStatsProp;
+}) {
+  const router = useRouter();
   const [resetCounter, setResetCounter] = useState(0);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
   const macros = targets.rows.filter((r) => r.group === "macro");
   const micros = targets.rows.filter((r) => r.group === "micro");
+
+  async function resetAllTargets(): Promise<void> {
+    if (clearing) return;
+    const overrides = targets.rows.filter((r) => r.target != null).length;
+    if (overrides === 0) {
+      // Local-only re-render so any unsaved typing snaps back to props.
+      setResetCounter((c) => c + 1);
+      return;
+    }
+    const ok = window.confirm(
+      `Wirklich ${overrides} Überschreibung(en) verwerfen und auf RDA-Standards zurücksetzen?`,
+    );
+    if (!ok) return;
+    setClearing(true);
+    setClearError(null);
+    try {
+      const res = await fetch(`/api/nutrition/targets`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setResetCounter((c) => c + 1);
+      router.refresh();
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  async function clearCache(): Promise<void> {
+    if (clearing) return;
+    const ok = window.confirm(
+      `Wirklich ${foodCacheStats.llm} LLM-Einträge aus dem Food-Cache löschen?`,
+    );
+    if (!ok) return;
+    setClearing(true);
+    setClearError(null);
+    try {
+      const res = await fetch(`/api/nutrition/food-cache`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      router.refresh();
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setClearing(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
@@ -39,10 +106,15 @@ export default function TargetsView({ targets }: { targets: NutritionTargets }) 
         </div>
         <button
           type="button"
-          onClick={() => setResetCounter((c) => c + 1)}
-          className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface)] text-caption hover:border-[var(--color-border-strong)] transition-colors"
+          onClick={resetAllTargets}
+          disabled={clearing}
+          className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface)] text-caption hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Glyph name="RotateCcw" size={14} />
+          <Glyph
+            name="RotateCcw"
+            size={14}
+            className={clearing ? "animate-spin" : undefined}
+          />
           Alle Standards
         </button>
       </header>
@@ -137,18 +209,35 @@ export default function TargetsView({ targets }: { targets: NutritionTargets }) 
               </div>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] bg-[var(--color-surface-2)] border border-[var(--color-border)] text-caption hover:border-[var(--color-tier-s1)]/60 transition-colors"
+                disabled={clearing || foodCacheStats.llm === 0}
+                onClick={clearCache}
+                className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] bg-[var(--color-surface-2)] border border-[var(--color-border)] text-caption hover:border-[var(--color-tier-s1)]/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Glyph name="Trash2" size={14} className="text-[var(--color-tier-s1)]" />
-                Cache leeren
+                <Glyph
+                  name={clearing ? "RotateCcw" : "Trash2"}
+                  size={14}
+                  className={clearing ? "animate-spin text-[var(--color-tier-s1)]" : "text-[var(--color-tier-s1)]"}
+                />
+                {clearing ? "Leere…" : "Cache leeren"}
               </button>
             </div>
+            {clearError && (
+              <span className="text-caption text-[var(--color-band-down)]">
+                Fehler: {clearError}
+              </span>
+            )}
             <div className="flex items-center gap-3 flex-wrap pt-3 border-t border-[var(--color-border)]">
               <Pill tone="low" size="sm">Seed</Pill>
-              <span className="text-caption">312 Einträge aus USDA-Snapshot</span>
+              <span className="text-caption">
+                {foodCacheStats.seed} Einträge aus USDA-Snapshot
+              </span>
               <span className="text-faint">·</span>
               <Pill tone="nutrition" size="sm">LLM-Cache</Pill>
-              <span className="text-caption">47 Einträge · letzte Aktualisierung vor 2 h</span>
+              <span className="text-caption">
+                {foodCacheStats.llm} Einträge
+                {foodCacheStats.newest_captured_at &&
+                  ` · letzte Aktualisierung ${fmtRelative(foodCacheStats.newest_captured_at)}`}
+              </span>
               <Link
                 href="/labs"
                 className="ml-auto text-caption hover:text-[var(--color-text)] transition-colors"
@@ -161,4 +250,17 @@ export default function TargetsView({ targets }: { targets: NutritionTargets }) 
       </details>
     </div>
   );
+}
+
+function fmtRelative(iso: string): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return "?";
+  const diff = Date.now() - then;
+  if (diff < 60_000) return "gerade eben";
+  const mins = Math.round(diff / 60_000);
+  if (mins < 60) return `vor ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `vor ${hours} h`;
+  const days = Math.round(hours / 24);
+  return `vor ${days} d`;
 }
