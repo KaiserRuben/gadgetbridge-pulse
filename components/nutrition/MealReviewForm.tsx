@@ -8,11 +8,13 @@
  *     grams scales totals deterministically — no surprise drift.
  *   - We never auto-redo classification; the parent surfaces a separate
  *     "redo with VLM" affordance.
- *   - This component is client-only and stateful; on save it would POST
- *     to /api/nutrition/meal/[id] (not wired in this design pass).
+ *   - On save we PUT /api/nutrition/meal/[id] with the new components +
+ *     a diff summary and refresh the route so the revision shows up in
+ *     the history block above.
  */
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
@@ -25,14 +27,19 @@ import { cn } from "@/lib/cn";
 type EditableComponent = MealComponent & { _dirty?: boolean };
 
 export function MealReviewForm({
+  mealId,
   initial,
   className,
 }: {
+  mealId: string;
   initial: MealComponent[];
   className?: string;
 }) {
+  const router = useRouter();
   const [comps, setComps] = useState<EditableComponent[]>(initial);
   const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const totals = useMemo(() => sumTotals(comps), [comps]);
 
@@ -76,6 +83,40 @@ export function MealReviewForm({
   };
 
   const dirty = comps.some((c) => c._dirty) || comps.length !== initial.length;
+
+  async function onSave(): Promise<void> {
+    if (!dirty || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Strip the `_dirty` flag so the API receives clean MealComponent
+      // shapes; ids that came from `add()` (cmp_new_*) get re-issued by
+      // the writer, so it's safe to leave them in place.
+      const cleanComps = comps.map(({ _dirty: _omit, ...rest }) => rest);
+      const totals = sumTotals(comps);
+      const diff_summary = buildDiffSummary(initial, comps);
+      const diff_json = {
+        before: initial,
+        after: cleanComps,
+      };
+      const res = await fetch(`/api/nutrition/meal/${mealId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ components: cleanComps, totals, diff_summary, diff_json }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      // Force a re-fetch on the server component so the revision row +
+      // updated totals show up immediately.
+      router.refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -122,21 +163,34 @@ export function MealReviewForm({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
+        {saveError && (
+          <span className="text-caption text-[var(--color-band-down)] mr-auto">
+            Fehler: {saveError}
+          </span>
+        )}
         <button
           type="button"
-          disabled={!dirty}
-          onClick={() => setComps(initial)}
+          disabled={!dirty || saving}
+          onClick={() => {
+            setComps(initial);
+            setSaveError(null);
+          }}
           className="text-caption text-muted hover:text-[var(--color-text)] disabled:opacity-40 disabled:hover:text-[var(--color-text-muted)] transition-colors px-3 py-2"
         >
           Zurücksetzen
         </button>
         <button
           type="button"
-          disabled={!dirty}
+          disabled={!dirty || saving}
+          onClick={onSave}
           className="inline-flex items-center gap-2 text-caption font-medium px-3 py-2 rounded-[var(--radius-chip)] bg-[var(--color-nutrition)] text-[var(--color-bg)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition"
         >
-          <Glyph name="CheckCircle" size={14} />
-          Speichern
+          <Glyph
+            name={saving ? "RotateCcw" : "CheckCircle"}
+            size={14}
+            className={saving ? "animate-spin" : undefined}
+          />
+          {saving ? "Speichert…" : "Speichern"}
         </button>
       </div>
     </div>
@@ -304,4 +358,29 @@ function sumTotals(comps: MealComponent[]): NutritionFacts {
     if (any) (out as unknown as Record<string, number>)[k] = Math.round(total * 10) / 10;
   }
   return out;
+}
+
+/**
+ * Compact human-readable diff for the revision history row. Lists adds,
+ * removes, and grams adjustments — capped at 6 entries to keep the row
+ * scan-friendly. Detailed before/after lives in diff_json.
+ */
+function buildDiffSummary(before: MealComponent[], after: MealComponent[]): string {
+  const beforeById = new Map(before.map((c) => [c.id, c]));
+  const afterById = new Map(after.map((c) => [c.id, c]));
+  const parts: string[] = [];
+  for (const c of after) {
+    const prev = beforeById.get(c.id);
+    if (!prev) {
+      parts.push(`+ ${c.label} ${Math.round(c.grams)}g`);
+    } else if (Math.round(prev.grams) !== Math.round(c.grams)) {
+      parts.push(`${c.label} ${Math.round(prev.grams)}→${Math.round(c.grams)}g`);
+    }
+  }
+  for (const c of before) {
+    if (!afterById.has(c.id)) parts.push(`− ${c.label}`);
+  }
+  if (parts.length === 0) return "keine Änderungen";
+  if (parts.length <= 6) return parts.join(", ");
+  return `${parts.slice(0, 6).join(", ")} (+${parts.length - 6} weitere)`;
 }

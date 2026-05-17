@@ -1,7 +1,12 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
-import { editMeal, readMeal, deleteMeal } from "@/lib/data/meal-store";
+import {
+  deleteMeal,
+  editMeal,
+  readMeal,
+  updateMealNotes,
+} from "@/lib/data/meal-store";
 import type { MealComponent, NutritionFacts } from "@/lib/nutrition/types";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +63,44 @@ export async function PUT(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+  return NextResponse.json({ meal: readMeal(id) });
+}
+
+/**
+ * PATCH /api/nutrition/meal/<id>
+ * Body: { notes?: string | null }
+ *
+ * Partial update for free-text fields that don't go through the full edit
+ * flow (no revision row, no diff). Currently only `notes`; extend as
+ * needed but keep the payload partial — full-shape edits stay on PUT.
+ */
+interface PatchBody {
+  notes?: string | null;
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const meal = readMeal(id);
+  if (!meal) return NextResponse.json({ error: "not found" }, { status: 404 });
+  let body: PatchBody;
+  try {
+    body = (await req.json()) as PatchBody;
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "notes")) {
+    try {
+      updateMealNotes(id, body.notes ?? null);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        { status: 500 },
+      );
+    }
   }
   return NextResponse.json({ meal: readMeal(id) });
 }

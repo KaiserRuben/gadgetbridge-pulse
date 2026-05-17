@@ -431,6 +431,16 @@ export function resetMealToPending(mealId: string): boolean {
   return tx() as boolean;
 }
 
+/** Partial update for notes only. Returns true if the row was updated. */
+export function updateMealNotes(mealId: string, notes: string | null): boolean {
+  const db = getWritableDb();
+  const trimmed = notes?.trim() ? notes.trim().slice(0, 2000) : null;
+  const r = db
+    .prepare(`UPDATE PULSE_MEAL SET notes = ? WHERE id = ?`)
+    .run(trimmed, mealId);
+  return r.changes > 0;
+}
+
 /**
  * Stale-lease sweep. Any pending meal whose lease is older than `maxAgeMs`
  * is treated as crashed and flipped to `failed` with reason `lease_expired`.

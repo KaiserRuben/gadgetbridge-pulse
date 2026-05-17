@@ -8,6 +8,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { MealActions } from "@/components/nutrition/MealActions";
 import { MealReviewForm } from "@/components/nutrition/MealReviewForm";
 import { MealHeroPhoto } from "@/components/nutrition/MealHeroPhoto";
 import { MealPhotoGallery } from "@/components/nutrition/MealPhotoGallery";
@@ -127,7 +128,7 @@ export default async function MealDetailPage({
           </span>
         }
       >
-        <MealReviewForm initial={meal.components} />
+        <MealReviewForm mealId={meal.id} initial={meal.components} />
       </Section>
 
       <Section eyebrow="Historie" title="Revisionen">
@@ -161,32 +162,12 @@ export default async function MealDetailPage({
       </Section>
 
       <Section eyebrow="Aktionen" title="Mahlzeit verwalten">
-        <Card variant="soft">
-          <CardBody className="p-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] bg-[var(--color-surface-2)] border border-[var(--color-border)] text-caption hover:border-[var(--color-nutrition)]/60 transition-colors"
-            >
-              <Glyph name="Sparkles" size={14} className="text-[var(--color-nutrition)]" />
-              Neu klassifizieren (VLM)
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] bg-[var(--color-surface-2)] border border-[var(--color-border)] text-caption hover:border-[var(--color-border-strong)] transition-colors"
-            >
-              <Glyph name="PenLine" size={14} className="text-subtle" />
-              Notiz hinzufügen
-            </button>
-            <span className="flex-1" />
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] text-caption text-[var(--color-tier-s1)] hover:bg-[hsl(4_40%_18%)]/60 transition-colors"
-            >
-              <Glyph name="Trash2" size={14} />
-              Löschen
-            </button>
-          </CardBody>
-        </Card>
+        <MealActions
+          mealId={meal.id}
+          periodKey={meal.period_key}
+          currentNotes={meal.notes}
+          status={meal.status}
+        />
       </Section>
     </div>
   );
