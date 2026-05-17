@@ -1,0 +1,49 @@
+node_modules
+.next
+.env
+.env*.local
+.env.pi.template
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# runner
+runner/node_modules
+runner/dist
+runner/.vapid-keys.json
+
+# pulse archive — large historical snapshot, not part of the active build
+_archive/
+
+# logs / scratch
+*.log
+.scratch/
+tmp/
+
+# editor
+.vscode/
+.idea/
+.claude/
+
+# OS
+Thumbs.db
+
+# docker image tarballs (transferred via syncthing for Pi deploy)
+deploy/*.tar
+
+# Syncthing artifacts
+.sync-conflict-*
+.syncthing.*.tmp
+
+# Personal/biometric test artifacts — never commit
+runner/src/v3/test/output/
+docs/screenshots/
+
+# Deploy units with personal paths (templated equivalents are tracked)
+deploy/*.plist
+deploy/*.service
+!deploy/*.template
+
+# Personal training plan / coaching seeds
+docs/training-plan-*.md
+runner/src/analyzer/PROBE_*.md
