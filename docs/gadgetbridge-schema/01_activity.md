@@ -52,7 +52,7 @@ The composite PK on `(TIMESTAMP, DEVICE_ID, OTHER_TIMESTAMP, SOURCE)` is essenti
 | `RAW_INTENSITY` | int | Presence/intensity flag, **not** a graduated scale on this firmware: `1` = activity slot present, `0` = idle, `-1` = NOT_MEASURED. | only `1` observed in this DB |
 | `STEPS` | int | Step count for the minute. | `-1` = NOT_MEASURED, `0` = no steps, `>0` = actual count |
 | `CALORIES` | int | Active calories for the minute. **Unit is not kcal.** Per-minute values up to 5990 are recorded — this is consistent with **deca-calories or with a small-J / cJ scale** (Huawei firmware reports "active calories" multiplied; Gadgetbridge passes through the raw value). Do NOT treat as kcal. | `-1` = NOT_MEASURED |
-| `DISTANCE` | int | Distance in **cm** (DAO multiplies the protocol value by 100 — see `addHuaweiActivitySample` -> `distance ... *100`). | `-1` = NOT_MEASURED |
+| `DISTANCE` | int | Distance in **metres** on the GT 5 Pro (verified against workout-summary km: 5546 steps → 3164 m raw at 0.57 m/step; 24427 steps → 16535 m at 0.68 m/step). Do not apply the legacy `/100` divisor that other Huawei builds need. | `-1` = NOT_MEASURED |
 | `SPO` | int | SpO2 in percent (95..99 typical). | `-1` = NOT_MEASURED, no `0` values present |
 | `HEART_RATE` | int | Instantaneous HR in bpm. | `-1` = NOT_MEASURED. Negative-non-`-1` values are **signed-byte overflow** of the wire HR byte (see anomalies). |
 | `RESTING_HEART_RATE` | int | Resting HR in bpm, sparsely populated (5 rows only). | `-1` = NOT_MEASURED, `0` = "not yet computed" |
@@ -105,7 +105,7 @@ Corrected totals (forward-only `SOURCE=11` rows, with sentinel exclusion):
 |---|---|---|
 | Steps | **420** | only 12 of 962 forward minutes had STEPS > 0 |
 | Calories (firmware unit) | **49,129** | not kcal — see column notes |
-| Distance | **468** (cm) | = ~4.68 m total — note: per `addHuaweiActivitySample`, the DAO already scales the wire value by 100, so this is centimetres |
+| Distance | **468** (m) | direct metres on the GT 5 Pro; matches workout-summary km when stitched across a session |
 
 `RAW_KIND=1` and `RAW_KIND=2` rows contribute zero metric data (they are markers).
 
@@ -138,7 +138,7 @@ Sample of these "negative-steps" rows (`SOURCE=11` backward pairs, first 10):
 
 Forward-only `SOURCE=11` rows:
 
-| Hour (local) | minutes | Steps | Calories (firmware) | Distance (cm) |
+| Hour (local) | minutes | Steps | Calories (firmware) | Distance (m) |
 |---|---|---|---|---|
 | 2024-06-15 19 | 27 | 0 | 0 | 0 |
 | 2024-06-15 20 | 60 | 27 | 1,446 | 29 |

@@ -143,9 +143,9 @@ On-demand LLM routes (`/api/explain-anomaly`, `/api/ingest-screenshot`) need `OL
 ## Where to read more
 
 - `docs/COACH_PLAN.md` — daily v2 pipeline detail (stage-by-stage).
-- `docs/TODO.md` — phased roadmap.
+- `docs/wip/TODO.md` — phased roadmap.
 - `docs/PLAN.md` — UI/IA design language (mostly historical).
-- `docs/COACH_SCHEMAS.md` / `docs/COACH_PROMPTS.md` — legacy snapshot pipeline.
+- `docs/legacy/COACH_SCHEMAS.md` / `docs/legacy/COACH_PROMPTS.md` — legacy snapshot pipeline.
 - `docs/validation-pipeline.md` — 2026-05-08 deployment audit.
 - `deploy/README.md` — Mac launchd + Pi systemd + Caddy.
 - `docs/gadgetbridge-schema/` — source DB reference.

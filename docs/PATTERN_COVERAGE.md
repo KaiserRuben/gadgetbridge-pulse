@@ -2,8 +2,8 @@
 
 Design memo. Two parallel pattern catalogues for when the DB grows beyond
 one day: a **DATA layer** of deterministic queries, and an **LLM layer**
-of synthesis-grade reasoning. Reference v2 schema (`docs/COACH_SCHEMAS.md`)
-and Phase 4–6 of `docs/TODO.md`.
+of synthesis-grade reasoning. Reference v2 schema (`docs/legacy/COACH_SCHEMAS.md`)
+and Phase 4–6 of `docs/wip/TODO.md`.
 
 Status: design only. No code edits proposed here are wired up.
 
@@ -131,7 +131,7 @@ timeframes the same block populates. **No schema diff** — the existing
 shape supports it. But baseline sources need an enum extension:
 
 ```jsonc
-// docs/COACH_SCHEMAS.md §2.6 — extend baseline_source enum
+// docs/legacy/COACH_SCHEMAS.md §2.6 — extend baseline_source enum
 "baseline_source": null
   | "lifetime"
   | "prior_week"      // already

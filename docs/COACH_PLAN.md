@@ -8,7 +8,7 @@ Two pipelines run side by side today:
 - **Snapshot** (legacy) — per-domain prompt grid, ships
   `insights/snapshot/<date>/<domain>.json`. Still wired (`tsx src/index.ts
   snapshot`) but no longer the source of the dashboard's daily verdict.
-  Schemas/prompts: `docs/COACH_SCHEMAS.md`, `docs/COACH_PROMPTS.md`.
+  Schemas/prompts: `docs/legacy/COACH_SCHEMAS.md`, `docs/legacy/COACH_PROMPTS.md`.
 
 This doc covers the daily v2 pipeline.
 
