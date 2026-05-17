@@ -1,0 +1,285 @@
+@import "tailwindcss";
+
+@theme {
+  /* fonts */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* neutrals — deep but not pitch */
+  --color-bg:            hsl(240 6% 4%);
+  --color-bg-elevated:   hsl(240 6% 7%);
+  --color-surface:       hsl(240 5% 9%);
+  --color-surface-2:     hsl(240 5% 12%);
+  --color-surface-3:     hsl(240 5% 15%);
+  --color-border:        hsl(240 4% 16%);
+  --color-border-strong: hsl(240 4% 24%);
+  --color-text:          hsl(0 0% 96%);
+  --color-text-muted:    hsl(240 4% 64%);
+  --color-text-subtle:   hsl(240 4% 48%);
+  --color-text-faint:    hsl(240 4% 32%);
+
+  /* domain accents */
+  --color-sleep:         hsl(252 70% 66%);
+  --color-sleep-2:       hsl(278 64% 64%);
+  --color-activity:      hsl(150 58% 52%);
+  --color-activity-2:    hsl(82 58% 54%);
+  --color-heart:         hsl(348 74% 60%);
+  --color-heart-2:       hsl(4 70% 58%);
+  --color-stress:        hsl(28 78% 58%);
+  --color-stress-2:      hsl(46 78% 60%);
+  --color-spo2:          hsl(195 64% 60%);
+  --color-temp:          hsl(20 74% 62%);
+  --color-hrv:           hsl(170 58% 54%);
+  /* nutrition — dusty rose-berry + warm honey. Distinct from heart (348/74%
+     saturated bright) by being lower-sat and warmer; distinct from stress/temp
+     orange family by sitting in the rose/amber neutral band. Reads as
+     food-photography: berry + grain. */
+  --color-nutrition:     hsl(346 48% 62%);
+  --color-nutrition-2:   hsl(36 62% 62%);
+
+  /* sleep stages */
+  --color-stage-deep:    hsl(252 70% 56%);
+  --color-stage-rem:     hsl(278 62% 64%);
+  --color-stage-light:   hsl(220 54% 60%);
+  --color-stage-awake:   hsl(28 68% 58%);
+
+  /* verdict bands — NOT performance grades */
+  --color-band-steady:   hsl(220 18% 60%);
+  --color-band-up:       hsl(195 54% 60%);
+  --color-band-down:     hsl(38 62% 60%);
+  --color-band-low:      hsl(240 5% 44%);
+
+  /* tiers */
+  --color-tier-s1:       hsl(4 70% 58%);
+  --color-tier-s2:       hsl(28 78% 58%);
+  --color-tier-s3:       hsl(220 18% 60%);
+
+  /* geometry */
+  --radius-card:   1.25rem;
+  --radius-pill:   999px;
+  --radius-chip:   0.625rem;
+  --radius-sm:     0.5rem;
+  --radius-xs:     0.375rem;
+
+  /* shadow */
+  --shadow-card:    0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 12px 36px -22px hsl(0 0% 0% / 0.6);
+  --shadow-pop:     0 12px 32px -8px hsl(0 0% 0% / 0.55), 0 0 0 1px hsl(0 0% 100% / 0.05);
+
+  /* motion — lerps not springs */
+  --dur-instant: 80ms;
+  --dur-fast:    160ms;
+  --dur-base:    240ms;
+  --dur-slow:    360ms;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border);
+  }
+
+  html, body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(252 60% 18% / 0.18), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, hsl(348 50% 16% / 0.10), transparent 60%),
+      var(--color-bg);
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: hsl(252 70% 64% / 0.4);
+    color: var(--color-text);
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+    border: 2px solid var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
+
+  :focus-visible {
+    outline: 2px solid hsl(252 70% 66% / 0.6);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+}
+
+@layer utilities {
+  .eyebrow {
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    color: var(--color-text-subtle);
+    font-weight: 500;
+  }
+
+  .surface {
+    background:
+      linear-gradient(180deg, hsl(240 6% 11% / 0.9), hsl(240 6% 8% / 0.7));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(8px);
+  }
+
+  .surface-soft {
+    background: hsl(240 5% 9% / 0.5);
+    border: 1px solid hsl(240 4% 16% / 0.6);
+    border-radius: var(--radius-card);
+  }
+
+  .surface-flat {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+  }
+
+  .surface-hover {
+    transition: transform var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+  }
+  .surface-hover:hover {
+    border-color: var(--color-border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px -20px hsl(0 0% 0% / 0.7);
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+  }
+
+  .num-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .text-muted   { color: var(--color-text-muted);  }
+  .text-subtle  { color: var(--color-text-subtle); }
+  .text-faint   { color: var(--color-text-faint);  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+  }
+
+  .ring-pulse {
+    box-shadow: 0 0 0 0 hsl(252 70% 66% / 0.5);
+    animation: ringPulse 2.4s var(--ease-out) infinite;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right,  hsl(240 4% 18% / 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(240 4% 18% / 0.4) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 80%);
+  }
+
+  .text-display {
+    font-size: clamp(3.5rem, 10vw, 5.5rem);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+    font-weight: 600;
+    line-height: 0.95;
+  }
+  .text-hero {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .text-h2 {
+    font-size: clamp(1.125rem, 2.4vw, 1.375rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+  .text-title  { font-size: 1rem; font-weight: 600; letter-spacing: -0.005em; }
+  .text-body   { font-size: 0.9375rem; line-height: 1.6; }
+  .text-body-sm{ font-size: 0.8125rem; line-height: 1.5; }
+  .text-caption{
+    font-size: 0.75rem;
+    line-height: 1.4;
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    color: var(--color-text-subtle);
+  }
+}
+
+@layer utilities {
+  /* recharts polish */
+  .recharts-wrapper:focus,
+  .recharts-surface:focus { outline: none; }
+
+  .recharts-default-tooltip {
+    background: hsl(240 6% 9% / 0.92) !important;
+    border: 1px solid var(--color-border-strong) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 30px -8px hsl(0 0% 0% / 0.4) !important;
+    padding: 8px 12px !important;
+  }
+  .recharts-cartesian-axis-tick-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--color-text-subtle);
+  }
+  .recharts-cartesian-grid line {
+    stroke: var(--color-border);
+    stroke-dasharray: 2 4;
+    opacity: 0.35;
+  }
+}
+
+/* keyframes */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes ringPulse {
+  0%   { box-shadow: 0 0 0 0   hsl(252 70% 66% / 0.5); }
+  100% { box-shadow: 0 0 0 18px hsl(252 70% 66% / 0); }
+}
+@keyframes sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%);  }
+}
+
+@layer utilities {
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(240 6% 11%) 0%,
+      hsl(240 6% 14%) 50%,
+      hsl(240 6% 11%) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+    border-radius: 0.75rem;
+  }
+
+  /* domain glow for cards */
+  .glow-sleep    { box-shadow: 0 0 60px -16px hsl(252 70% 66% / 0.30); }
+  .glow-heart    { box-shadow: 0 0 60px -16px hsl(348 74% 60% / 0.30); }
+  .glow-activity { box-shadow: 0 0 60px -16px hsl(150 58% 52% / 0.30); }
+  .glow-body     { box-shadow: 0 0 60px -16px hsl(20 74% 62% / 0.30);  }
+  .glow-stress   { box-shadow: 0 0 60px -16px hsl(28 78% 58% / 0.30);  }
+  .glow-nutrition{ box-shadow: 0 0 60px -16px hsl(346 48% 62% / 0.30); }
+}
