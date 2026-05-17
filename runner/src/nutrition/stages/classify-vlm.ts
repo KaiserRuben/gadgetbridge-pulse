@@ -199,14 +199,13 @@ async function callClassify(
     hint.length > 0
       ? `${imageNote} Nutzer-Hinweis: "${hint.replace(/"/g, '\\"')}"`
       : imageNote;
-  // qwen3.6 + Ollama grammar engine + vision crashes the model runner on
-  // local Apple Silicon. Drop to `format: "json"` whenever any image is
-  // attached; keep strict JSON-Schema for text-only meals.
-  const useStrict = images.length === 0;
+  // Strict JSON-Schema (pydantic-equivalent grammar) is always sent as
+  // `format`. Vision + schema works on this stack; the lenient `format:"json"`
+  // fallback we used briefly produced outputs missing required scalars
+  // (meal_kind) and was the wrong call.
   const body = {
     model,
     stream: false,
-    ...(useStrict ? {} : { think: false }),
     messages: [
       {
         role: "user" as const,
@@ -214,7 +213,7 @@ async function callClassify(
         ...(images.length > 0 ? { images: images.map((img) => img.base64) } : {}),
       },
     ],
-    format: useStrict ? schema : "json",
+    format: schema,
     options,
   };
   const url = `${config.ollamaUrl.replace(/\/+$/, "")}/api/chat`;
@@ -241,9 +240,8 @@ async function callClassify(
       reason: `empty content (done_reason=${json.done_reason ?? "unknown"})`,
     };
   }
-  const adapted = useStrict ? content : stripFences(content);
   try {
-    const output = parseAndValidate<ClassifyOutput>(adapted, schema);
+    const output = parseAndValidate<ClassifyOutput>(content, schema);
     return { ok: true, output };
   } catch (err) {
     if (err instanceof SchemaValidationError) {
@@ -251,15 +249,5 @@ async function callClassify(
     }
     return { ok: false, reason: `parse: ${err instanceof Error ? err.message : err}` };
   }
-}
-
-/**
- * Strip a leading/trailing ```json ... ``` fence if the model wraps its JSON
- * in markdown. Pure pre-parse hygiene; no schema decisions involved.
- */
-function stripFences(raw: string): string {
-  const trimmed = raw.trim();
-  const fence = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
-  return fence ? fence[1].trim() : trimmed;
 }
 
