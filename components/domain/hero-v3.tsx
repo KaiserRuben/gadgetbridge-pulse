@@ -3,7 +3,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { ConfidenceBar } from "@/components/ui/confidence-bar";
-import { InProgressBadge } from "@/components/ui/in-progress-badge";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import type { DailyV3Bundle, Band } from "@/lib/types/v3";
 import type { DashboardMode } from "@/lib/dashboard/mode";
 import { MODE_LABEL_DE } from "@/lib/dashboard/mode";
@@ -33,29 +33,21 @@ export function HeroV3({
   const band: Band | null = synthesis?.verdict_band ?? dayScore?.band ?? null;
 
   // ── Live (in-progress day, no insights yet) ────────────────────────────
+  // U3: route through the shared `<EmptyStateCard cause="computing">` so
+  // the "Wird heute Nacht berechnet" copy + InProgressBadge come from the
+  // central primitive instead of being re-implemented inline. The
+  // ScoreRing isn't useful when there is nothing to score.
   if (!synthesis && !dayScore) {
     return (
-      <Card glow="sleep" className="overflow-hidden">
-        <CardBody className={layout(compact)}>
-          <ScoreRing score={0} size={ringSize(compact)} />
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Eyebrow>{fmtDay(date)}</Eyebrow>
-              <Pill tone="low" size="sm">{MODE_LABEL_DE[mode]}</Pill>
-              <InProgressBadge />
-            </div>
-            <h1 className={compact ? "text-h2" : "text-hero"}>
-              Tag läuft noch — Daten sammeln.
-            </h1>
-            {!compact && (
-              <p className="text-body text-muted max-w-[60ch]">
-                Schritte, Stress und Schlaf werden weiter aufgezeichnet. Das
-                Tages-Insight wird nach Mitternacht final berechnet.
-              </p>
-            )}
-          </div>
-        </CardBody>
-      </Card>
+      <EmptyStateCard
+        cause="computing"
+        cluster="synthesis_v3"
+        reason={
+          compact
+            ? undefined
+            : "Schritte, Stress und Schlaf werden weiter aufgezeichnet. Das Tages-Insight wird nach Mitternacht final berechnet."
+        }
+      />
     );
   }
 

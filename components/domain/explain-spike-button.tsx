@@ -1,104 +1,101 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { DerivedCell, type CellState } from "@/components/derived/DerivedCell";
 import { Glyph } from "@/components/ui/glyph";
+import type { AnomalyExplanationPayload } from "@/runner/clusters/anomaly_explain/types";
 
-type State =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "ok"; rationale_strength: string; explanation: string; alternatives: string[]; cache: "hit" | "miss" }
-  | { kind: "err"; message: string };
+/**
+ * "Warum?" — anomaly-explanation surface.
+ *
+ * Thin wrapper over <DerivedCell cluster="anomaly_explain" ...>. The
+ * bespoke fetch + 4-state animation logic that used to live here moved
+ * into the runner's JobCell pipeline (cluster `anomaly_explain`); this
+ * component just selects the right cell key per call site and renders
+ * the hypothesis list.
+ *
+ * Two call shapes:
+ *  - Driver mode: `<ExplainSpikeButton observationId="..." date={...} />`
+ *  - Spike mode:  `<ExplainSpikeButton metric="hr" ts={1731676800000} date={...} />`
+ *
+ * `date` is passed through to scope the cell to the wake-date period
+ * (currently unused by the cell key itself but reserved for future
+ * disambiguation when the same observation_id repeats across periods).
+ */
 
-export function ExplainSpikeButton({
-  ts,
-  metric,
-  date,
-}: {
-  ts: number;
-  metric: "hr" | "rhr" | "spo2" | "stress" | "hrv";
+export interface ExplainSpikeButtonProps {
+  /** Driver mode: existing observation_id from daily.json drivers. */
+  observationId?: string;
+  /** Spike mode: metric type for the synthetic observation. */
+  metric?: "hr" | "rhr" | "spo2" | "stress" | "hrv" | "steps" | "temp";
+  /** Spike mode: unix-ms timestamp on the chart. */
+  ts?: number;
+  /** YYYY-MM-DD wake-date period the cell belongs to. */
   date: string;
-}) {
-  const [state, setState] = useState<State>({ kind: "idle" });
-  const [, startTransition] = useTransition();
+}
 
-  function onClick() {
-    if (state.kind === "loading") return;
-    setState({ kind: "loading" });
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/explain-anomaly", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ts, metric, date }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-        setState({
-          kind: "ok",
-          rationale_strength: json.explanation?.rationale_strength ?? "weak",
-          explanation: json.explanation?.explanation_text ?? "",
-          alternatives: json.explanation?.alternative_hypotheses ?? [],
-          cache: (res.headers.get("X-Cache") as "hit" | "miss") ?? "miss",
-        });
-      } catch (e) {
-        setState({ kind: "err", message: e instanceof Error ? e.message : String(e) });
-      }
-    });
-  }
+export function ExplainSpikeButton(props: ExplainSpikeButtonProps) {
+  const { observationId, metric, ts, date } = props;
+  const cellKey = observationId ?? (metric && ts != null ? `manual_${metric}_${ts}` : null);
+  if (!cellKey) return null;
 
   return (
-    <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={state.kind === "loading"}
-        className="self-start inline-flex items-center gap-2 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-1.5 text-[0.875rem] hover:bg-[var(--color-surface-hover)] transition-colors disabled:opacity-60"
-      >
-        <Glyph name={state.kind === "loading" ? "Sparkles" : "Brain"} size={14} className={state.kind === "loading" ? "animate-pulse" : ""} />
-        {state.kind === "loading" ? "Erkläre…" : state.kind === "ok" ? "Erneut erklären" : "Warum?"}
-      </button>
+    <DerivedCell<AnomalyExplanationPayload>
+      cluster="anomaly_explain"
+      cellKey={cellKey}
+      scope="daily"
+      emptyCtaLabel="Warum?"
+      fallback={<ExplanationLoading />}
+      render={(payload, state) => <HypothesisList payload={payload} state={state} />}
+      // Anomaly LLM calls can take ~25s on qwen3.6 — poll a touch faster
+      // than the default so the user sees the result land promptly.
+      activeIntervalMs={1500}
+    />
+  );
+}
 
-      <AnimatePresence mode="popLayout">
-        {state.kind === "ok" && (
-          <motion.div
-            key="ok"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col gap-3 px-4 py-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)]"
-          >
-            <div className="flex items-center gap-2">
-              <span className="eyebrow">LLM-Hypothese</span>
-              <span className="text-caption num-mono text-subtle">{state.rationale_strength}</span>
-              {state.cache === "hit" && <span className="text-caption num-mono text-subtle">cache</span>}
+function ExplanationLoading() {
+  return (
+    <div className="flex items-center gap-2 text-caption text-subtle px-3 py-2">
+      <Glyph name="Sparkles" size={14} className="animate-pulse" />
+      <span>Werte Anomalie aus…</span>
+    </div>
+  );
+}
+
+function HypothesisList({
+  payload,
+  state,
+}: {
+  payload: AnomalyExplanationPayload;
+  state: CellState;
+}) {
+  const hypotheses = payload.hypotheses ?? [];
+  if (hypotheses.length === 0) {
+    return (
+      <div className="text-caption text-subtle">
+        Keine Hypothesen verfügbar.
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 px-4 py-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)]">
+      <div className="flex items-center gap-2">
+        <span className="eyebrow">LLM-Hypothesen</span>
+        {state === "ready_cached" && (
+          <span className="text-caption num-mono text-subtle">cache</span>
+        )}
+      </div>
+      <ul className="flex flex-col gap-2.5">
+        {hypotheses.map((h, i) => (
+          <li key={i} className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[0.875rem] font-medium">{h.factor}</span>
+              <span className="text-caption num-mono text-subtle">{h.strength}</span>
             </div>
-            <p className="text-[0.9375rem] leading-snug">{state.explanation}</p>
-            {state.alternatives.length > 0 && (
-              <ul className="flex flex-col gap-1.5">
-                {state.alternatives.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2 text-caption">
-                    <Glyph name="ArrowRight" size={12} className="mt-0.5 text-subtle" />
-                    <span>{a}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </motion.div>
-        )}
-        {state.kind === "err" && (
-          <motion.div
-            key="err"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-caption text-[var(--color-band-down)]"
-          >
-            {state.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <p className="text-caption text-muted leading-snug">{h.rationale}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

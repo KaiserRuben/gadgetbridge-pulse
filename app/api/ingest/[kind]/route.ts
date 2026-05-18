@@ -136,8 +136,20 @@ function handleInsight(body: Record<string, unknown>) {
     status,
     payload: body.payload,
     source: (body.source as string) ?? "runner",
+    // JobCell columns (M012). Optional; absent on legacy callers, present
+    // on cluster-path writes coming through cell.ts release/markStale/claim.
+    startedAt: pickNullable(body.startedAt),
+    leasedAt: pickNullable(body.leasedAt),
+    errorText: pickNullable(body.errorText),
+    retries: typeof body.retries === "number" ? body.retries : undefined,
   });
   return NextResponse.json({ ok: true });
+}
+
+function pickNullable(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  return typeof v === "string" ? v : undefined;
 }
 
 function handleBundle(body: Record<string, unknown>) {
@@ -271,18 +283,22 @@ function handleMeal(body: Record<string, unknown>) {
 function handleFood(body: Record<string, unknown>) {
   const food_key = body.food_key as string;
   const label = (body.label as string | null) ?? null;
-  const source = body.source as "llm" | "seed";
+  const source = body.source as "llm" | "seed" | "usda" | "off" | "user";
   const model = (body.model as string | null) ?? null;
   const per100g = body.per100g as Record<string, number> | undefined;
   const captured_at = body.captured_at as string;
+  const en_query = (body.en_query as string | null | undefined) ?? null;
   if (!food_key || !source || !per100g || !captured_at) {
     return NextResponse.json(
       { error: "food requires food_key, source, per100g, captured_at" },
       { status: 400 },
     );
   }
-  if (source !== "llm" && source !== "seed") {
-    return NextResponse.json({ error: "source must be llm or seed" }, { status: 400 });
+  if (!["llm", "seed", "usda", "off", "user"].includes(source)) {
+    return NextResponse.json(
+      { error: "source must be one of llm|seed|usda|off|user" },
+      { status: 400 },
+    );
   }
   try {
     writeFoodCache({
@@ -292,6 +308,7 @@ function handleFood(body: Record<string, unknown>) {
       model,
       per100g: per100g as unknown as NutritionFacts,
       captured_at,
+      en_query,
     });
   } catch (err) {
     return NextResponse.json(

@@ -112,6 +112,15 @@ export interface InsightRow<P = unknown> {
   payload: P;
   source: string;
   updatedAt: string;
+  /** First time the cell entered a non-pending state. Populated by M012
+   *  backfill for legacy rows. */
+  startedAt?: string | null;
+  /** Non-null while a runner currently owns this cell. */
+  leasedAt?: string | null;
+  /** Terminal failure text surfaced when status='partial'. */
+  errorText?: string | null;
+  /** Stale-lease sweep counter; capped at MAX_RETRIES. */
+  retries?: number;
 }
 
 export function readInsight<P = unknown>(
@@ -134,9 +143,14 @@ export function readInsight<P = unknown>(
           payload_json: string;
           source: string;
           updated_at: string;
+          started_at: string | null;
+          leased_at: string | null;
+          error_text: string | null;
+          retries: number | null;
         }
       >(
-        `SELECT period_key, scope, cluster, version, status, payload_json, source, updated_at
+        `SELECT period_key, scope, cluster, version, status, payload_json, source, updated_at,
+                started_at, leased_at, error_text, retries
          FROM PULSE_INSIGHT
          WHERE period_key = ? AND scope = ? AND cluster = ?`,
       )
@@ -151,6 +165,10 @@ export function readInsight<P = unknown>(
       payload: JSON.parse(row.payload_json) as P,
       source: row.source,
       updatedAt: row.updated_at,
+      startedAt: row.started_at,
+      leasedAt: row.leased_at,
+      errorText: row.error_text,
+      retries: row.retries ?? 0,
     };
   } catch {
     return null;
@@ -206,22 +224,36 @@ export interface WriteInsightInput {
   status: InsightStatus;
   payload: unknown;
   source?: string;
+  /** Optional JobCell columns (M012). Omit to leave existing values intact. */
+  startedAt?: string | null;
+  leasedAt?: string | null;
+  errorText?: string | null;
+  retries?: number;
 }
 
 export function writeInsight(input: WriteInsightInput): void {
   const db = getWritableDb();
   const scope = input.scope ?? "daily";
   const source = input.source ?? "runner";
+  const nowIso = new Date().toISOString();
+  // started_at: first non-pending status stamps it; later writes leave the
+  // existing value via COALESCE. Lease/error columns are explicit overrides
+  // when the caller passes them.
   db.prepare(
     `INSERT INTO PULSE_INSIGHT
-       (period_key, scope, cluster, version, status, payload_json, source, updated_at)
-     VALUES (?, ?, ?, 1, ?, ?, ?, ?)
+       (period_key, scope, cluster, version, status, payload_json, source, updated_at,
+        started_at, leased_at, error_text, retries)
+     VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(period_key, scope, cluster) DO UPDATE SET
        version = PULSE_INSIGHT.version + 1,
        status = excluded.status,
        payload_json = excluded.payload_json,
        source = excluded.source,
-       updated_at = excluded.updated_at`,
+       updated_at = excluded.updated_at,
+       started_at = COALESCE(PULSE_INSIGHT.started_at, excluded.started_at),
+       leased_at = excluded.leased_at,
+       error_text = excluded.error_text,
+       retries = COALESCE(excluded.retries, PULSE_INSIGHT.retries)`,
   ).run(
     input.periodKey,
     scope,
@@ -229,7 +261,11 @@ export function writeInsight(input: WriteInsightInput): void {
     input.status,
     JSON.stringify(input.payload),
     source,
-    new Date().toISOString(),
+    nowIso,
+    input.startedAt ?? (input.status === "pending" ? null : nowIso),
+    input.leasedAt ?? null,
+    input.errorText ?? null,
+    input.retries ?? null,
   );
 }
 

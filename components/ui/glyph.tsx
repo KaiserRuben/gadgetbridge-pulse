@@ -2,15 +2,15 @@ import type { CSSProperties } from "react";
 import {
   Activity, AlarmClock, AlertTriangle, ArrowRight, BarChart2, Bell, Brain, Calendar, CalendarDays, CalendarRange,
   Camera, CheckCircle, ChevronLeft, ChevronRight, Clock,
-  Command, Compass, Croissant, Dumbbell, Flag, Flame, FlaskConical, Footprints, Gauge, GitMerge, HeartPulse, History, Home, ImageOff, ImagePlus, LineChart,
-  Moon, Mountain, Pause, PenLine, Plus, Repeat, RotateCcw, Settings, Sparkles, Sunrise, Target, Thermometer, Trash2, Trophy, Upload, User, Utensils, Waves, Wine, X, Zap, type LucideIcon,
+  Command, Compass, Croissant, Database, Dumbbell, Flag, Flame, FlaskConical, Footprints, Gauge, GitMerge, HeartPulse, History, Home, Hourglass, ImageOff, ImagePlus, LineChart,
+  Moon, Mountain, Pause, PenLine, Plus, PowerOff, Repeat, RotateCcw, Settings, Sparkles, Sunrise, Target, Thermometer, Trash2, Trophy, Upload, User, Utensils, Waves, Wine, X, Zap, type LucideIcon,
 } from "lucide-react";
 
 const map = {
   Activity, AlarmClock, AlertTriangle, ArrowRight, BarChart2, Bell, Brain, Calendar, CalendarDays, CalendarRange,
   Camera, CheckCircle, ChevronLeft, ChevronRight, Clock,
-  Command, Compass, Croissant, Dumbbell, Flag, Flame, FlaskConical, Footprints, Gauge, GitMerge, HeartPulse, History, Home, ImageOff, ImagePlus, LineChart,
-  Moon, Mountain, Pause, PenLine, Plus, Repeat, RotateCcw, Settings, Sparkles, Sunrise, Target, Thermometer, Trash2, Trophy, Upload, User, Utensils, Waves, Wine, X, Zap,
+  Command, Compass, Croissant, Database, Dumbbell, Flag, Flame, FlaskConical, Footprints, Gauge, GitMerge, HeartPulse, History, Home, Hourglass, ImageOff, ImagePlus, LineChart,
+  Moon, Mountain, Pause, PenLine, Plus, PowerOff, Repeat, RotateCcw, Settings, Sparkles, Sunrise, Target, Thermometer, Trash2, Trophy, Upload, User, Utensils, Waves, Wine, X, Zap,
 } satisfies Record<string, LucideIcon>;
 
 export type GlyphName = keyof typeof map;

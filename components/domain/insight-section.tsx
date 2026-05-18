@@ -1,7 +1,9 @@
+import { DerivedCell } from "@/components/derived/DerivedCell";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { ScoreRing } from "@/components/ui/score-ring";
+import { hasClusterRegistered } from "@/lib/derived/registry";
 import type {
   SleepInsightV3,
   RecoveryInsightV3,
@@ -19,14 +21,50 @@ type AnyInsight = SleepInsightV3 | RecoveryInsightV3 | ActivityInsightV3;
  * KPI list (with per-item reasoning) + suggestions stack (today + long_term).
  *
  * Used at the top of /sleep/[date], /recovery/[date], /activity/[date].
+ *
+ * Two render paths supported during the Phase 2b→3 migration:
+ *
+ *  1. Legacy: callers pass `insight` directly. The data is already in
+ *     scope on the server (loaded from v3 JSON) and we render statically.
+ *  2. JobCell: callers pass `cluster` + `cellKey`. We wrap with
+ *     `<DerivedCell>` so polling, cached delivery, and the reprocessing
+ *     overlay come for free. Falls back to the legacy path automatically
+ *     when the cluster isn't in the registry yet (the registry is empty
+ *     in Phase 2b; Phase 3 fills it cluster by cluster).
  */
 export function InsightSection({
   insight,
   domainLabel,
+  cluster,
+  cellKey,
+  scope = "daily",
 }: {
   insight: AnyInsight | null;
   domainLabel: string;
+  /** When set together with `cellKey`, the JobCell path is used. */
+  cluster?: string;
+  cellKey?: string;
+  scope?: "daily" | "weekly";
 }) {
+  // JobCell path — only when both cluster and cellKey are present AND the
+  // cluster is migrated (registered). Empty registry = stay on legacy.
+  if (cluster && cellKey && hasClusterRegistered(cluster)) {
+    return (
+      <DerivedCell<AnyInsight>
+        cluster={cluster}
+        cellKey={cellKey}
+        scope={scope}
+        fallback={<InsightSkeleton domainLabel={domainLabel} />}
+        emptyCtaLabel="Analyse anfordern"
+        render={(payload) => renderInsight(payload, domainLabel)}
+      />
+    );
+  }
+
+  return renderInsight(insight, domainLabel);
+}
+
+function renderInsight(insight: AnyInsight | null, domainLabel: string) {
   if (!insight || !Array.isArray(insight.kpis)) {
     return (
       <Card>
@@ -107,7 +145,7 @@ export function InsightSection({
       {/* ── Suggestions today ───────────────────────────────────────────── */}
       {Array.isArray(insight.suggestions_today) && insight.suggestions_today.length > 0 && (
         <SuggestionStack
-          title="Heute klein"
+          title="Heute"
           horizonLabel="heute"
           suggestions={insight.suggestions_today}
         />
@@ -118,6 +156,17 @@ export function InsightSection({
         <LongTermStack suggestions={insight.suggestions_long_term} />
       )}
     </div>
+  );
+}
+
+function InsightSkeleton({ domainLabel }: { domainLabel: string }) {
+  return (
+    <Card>
+      <CardBody className="p-5 flex flex-col gap-3">
+        <Eyebrow>{domainLabel}</Eyebrow>
+        <p className="text-body-sm text-muted">Analyse wird vorbereitet …</p>
+      </CardBody>
+    </Card>
   );
 }
 

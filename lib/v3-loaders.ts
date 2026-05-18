@@ -13,6 +13,13 @@ import type {
   DailyV3Bundle,
   DayScoreResult,
 } from "@/lib/types/v3";
+import type {
+  MorningInsightPayload,
+  MorningLeverCard as MorningLeverCardType,
+} from "@/runner/clusters/morning_insight/types";
+import type {
+  SynthesisV3Payload,
+} from "@/runner/clusters/synthesis_v3/types";
 
 const SYNC_ROOT =
   process.env.PULSE_ROOT ?? "./pulse";
@@ -62,57 +69,14 @@ export async function loadTrainingPackage(date: string): Promise<unknown | null>
  * morning + plan + pain history into "spend your day like this" guidance.
  * Replaces the day-end coaching_cards on `daily.json` for the /coach page.
  *
- * Shape lives in `runner/src/v3/schemas/morning_insight.schema.json`; the
- * loader is typed as a minimal shape here to spare the wider V3 types barrel
- * from carrying it.
+ * Source of truth for the shape lives in
+ * `runner/src/clusters/morning_insight/types.ts` (and its mirror schema
+ * at `runner/src/clusters/morning_insight/package.schema.json`). The
+ * dashboard re-exports the cluster types here so the legacy reader
+ * pathway + the new JobCell pathway speak the same TS shape.
  */
-export interface MorningLeverCard {
-  reasoning: string;
-  lever: string;
-  domain: string;
-  confidence: "high" | "medium" | "low";
-  trajectory: string;
-  projection_90d: string;
-  interpretation?: string | null;
-  tiny_next_step: {
-    anchor: string;
-    tiny: string;
-    horizon: "today" | "tonight" | "tomorrow" | "this_week";
-  };
-}
-
-export interface MorningInsight {
-  schema_version: "use_case/morning/v1";
-  incomplete: boolean;
-  language: "de" | "en";
-  abstain: boolean;
-  abstain_reason: string | null;
-  headline: string | null;
-  summary_short: string | null;
-  summary_long: string | null;
-  verdict_band: "above_usual" | "steady" | "below_usual" | null;
-  training_recommendation: {
-    reasoning: string;
-    suggested_session_template_id: string | null;
-    justification_de: string | null;
-    alternatives: string[];
-  };
-  day_shape: Array<{
-    reasoning: string;
-    anchor: string;
-    action_de: string;
-    horizon: "morning" | "midday" | "afternoon" | "evening" | "day";
-  }>;
-  care_for: Array<{
-    reasoning: string;
-    area_de: string;
-    why_de: string;
-    action_de: string;
-  }>;
-  levers: MorningLeverCard[];
-  citations: Array<{ kind: string; ref_id: string; summary: string }>;
-  confidence: { value: number; reasoning: string };
-}
+export type MorningInsight = MorningInsightPayload;
+export type MorningLeverCard = MorningLeverCardType;
 
 export async function loadMorningInsight(date: string): Promise<MorningInsight | null> {
   return readJson<MorningInsight>(daily(date, "morning_insight.json"));
@@ -121,6 +85,20 @@ export async function loadMorningInsight(date: string): Promise<MorningInsight |
 export async function loadMorningPackage(date: string): Promise<unknown | null> {
   return readJson<unknown>(daily(date, "morning_package.json"));
 }
+
+/**
+ * Day-level synthesis (`daily_v3.json`). Phase 3d migration:
+ *
+ * Source of truth for the cluster payload shape lives in
+ * `runner/src/clusters/synthesis_v3/types.ts` (`SynthesisV3Payload`).
+ * The dashboard's pre-existing `SynthesisInsightV3` interface in
+ * `lib/types/v3.ts` is structurally compatible with the cluster
+ * payload's legacy-write shape (`period_key` + `model` are stripped on
+ * dual-write), so both names continue to refer to the same on-disk
+ * payload. The re-export here lines up the cluster type with the
+ * dashboard pathway, mirroring what Phase 3c did for `MorningInsight`.
+ */
+export type DailyV3InsightPayload = SynthesisV3Payload;
 
 export async function loadDailyV3(date: string): Promise<SynthesisInsightV3 | null> {
   return readJson<SynthesisInsightV3>(daily(date, "daily_v3.json"));
