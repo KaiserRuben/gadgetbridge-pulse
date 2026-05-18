@@ -47,6 +47,7 @@ interface ComponentRow {
   confidence: number | null;
   source: MealComponent["source"];
   nutrition_json: string;
+  provenance_json: string | null;
 }
 
 interface RevisionRow {
@@ -118,6 +119,9 @@ function hydrateMeal(
         confidence: c.confidence,
         source: c.source,
         nutrition: parseJSON(c.nutrition_json, { per100g: EMPTY_TOTALS, totals: EMPTY_TOTALS }),
+        provenance: c.provenance_json
+          ? parseJSON<MealComponent["provenance"]>(c.provenance_json, [])
+          : [],
       })),
     revisions: revisions.map((r) => ({
       id: r.id,
@@ -162,7 +166,7 @@ export function readMeal(mealId: string): Meal | null {
     if (!row) return null;
     const components = db
       .prepare<[string], ComponentRow>(
-        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json
+        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json, provenance_json
          FROM PULSE_MEAL_COMPONENT WHERE meal_id = ? ORDER BY ord`,
       )
       .all(mealId);
@@ -196,7 +200,7 @@ export function listMealsForPeriod(periodKey: string): Meal[] {
     const placeholders = ids.map(() => "?").join(",");
     const components = db
       .prepare<string[], ComponentRow>(
-        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json
+        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json, provenance_json
          FROM PULSE_MEAL_COMPONENT WHERE meal_id IN (${placeholders}) ORDER BY meal_id, ord`,
       )
       .all(...ids);
@@ -623,8 +627,8 @@ export function writeClassifiedMeal(input: WriteClassifiedMealInput): void {
     db.prepare(`DELETE FROM PULSE_MEAL_COMPONENT WHERE meal_id = ?`).run(input.id);
     const ins = db.prepare(
       `INSERT INTO PULSE_MEAL_COMPONENT
-         (id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json, provenance_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     input.components.forEach((c, idx) => {
       ins.run(
@@ -637,6 +641,7 @@ export function writeClassifiedMeal(input: WriteClassifiedMealInput): void {
         c.confidence,
         c.source,
         JSON.stringify(c.nutrition),
+        c.provenance && c.provenance.length > 0 ? JSON.stringify(c.provenance) : null,
       );
     });
     if (input.photos) {
@@ -688,8 +693,8 @@ export function editMeal(input: EditMealInput): void {
     db.prepare(`DELETE FROM PULSE_MEAL_COMPONENT WHERE meal_id = ?`).run(input.id);
     const ins = db.prepare(
       `INSERT INTO PULSE_MEAL_COMPONENT
-         (id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json, provenance_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     input.components.forEach((c, idx) => {
       ins.run(
@@ -702,6 +707,7 @@ export function editMeal(input: EditMealInput): void {
         c.confidence,
         c.source,
         JSON.stringify(c.nutrition),
+        c.provenance && c.provenance.length > 0 ? JSON.stringify(c.provenance) : null,
       );
     });
     db.prepare(
@@ -727,10 +733,18 @@ export function deleteMeal(mealId: string): void {
 export interface WriteFoodCacheInput {
   food_key: string;
   label: string | null;
-  source: "seed" | "llm";
+  /**
+   * Phase 2b widens this beyond the original `'seed' | 'llm'` to also accept
+   * external authoritative sources (`'usda'`, `'off'`) and explicit user
+   * overrides (`'user'`). The PULSE_FOOD_NUTRITION CHECK constraint is
+   * widened in M013 to match.
+   */
+  source: "seed" | "llm" | "usda" | "off" | "user";
   model: string | null;
   per100g: NutritionFacts;
   captured_at: string;
+  /** USDA / OFF English search term, cached per food_key. */
+  en_query?: string | null;
 }
 
 /**
@@ -779,14 +793,15 @@ export function clearLlmFoodCache(): number {
 export function writeFoodCache(input: WriteFoodCacheInput): void {
   const db = getWritableDb();
   db.prepare(
-    `INSERT INTO PULSE_FOOD_NUTRITION (food_key, label, source, model, per_100g_json, captured_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO PULSE_FOOD_NUTRITION (food_key, label, source, model, per_100g_json, captured_at, en_query)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(food_key) DO UPDATE SET
        label = excluded.label,
        source = excluded.source,
        model = excluded.model,
        per_100g_json = excluded.per_100g_json,
-       captured_at = excluded.captured_at`,
+       captured_at = excluded.captured_at,
+       en_query = COALESCE(excluded.en_query, PULSE_FOOD_NUTRITION.en_query)`,
   ).run(
     input.food_key,
     input.label,
@@ -794,5 +809,6 @@ export function writeFoodCache(input: WriteFoodCacheInput): void {
     input.model,
     JSON.stringify(input.per100g),
     input.captured_at,
+    input.en_query ?? null,
   );
 }

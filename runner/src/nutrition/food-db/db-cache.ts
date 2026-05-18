@@ -13,13 +13,13 @@
 import type Database from "better-sqlite3";
 
 import { pulseDb } from "../../pulse-db.ts";
-import type { NutritionFacts } from "../types.ts";
+import type { FoodNutritionSource, NutritionFacts } from "../types.ts";
 
 export interface CachedFood {
   food_key: string;
   per100g: NutritionFacts;
   label: string | null;
-  source: "seed" | "llm";
+  source: FoodNutritionSource;
   model: string | null;
   captured_at: string;
 }
@@ -27,7 +27,7 @@ export interface CachedFood {
 interface Row {
   food_key: string;
   label: string | null;
-  source: "seed" | "llm";
+  source: FoodNutritionSource;
   model: string | null;
   per_100g_json: string;
   captured_at: string;

@@ -87,7 +87,7 @@ export async function enrichFoodViaLLM(input: EnrichInput): Promise<EnrichLLMRes
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(300_000),
     });
   } catch (err) {
     throw new Error(`enrichFoodViaLLM: fetch failed: ${err instanceof Error ? err.message : err}`);

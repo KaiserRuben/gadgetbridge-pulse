@@ -275,7 +275,7 @@ async function callModel(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(240_000),
+      signal: AbortSignal.timeout(300_000),
     });
   } catch (err) {
     throw new Error(`aggregateDay: fetch failed: ${err instanceof Error ? err.message : err}`);

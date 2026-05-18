@@ -107,6 +107,7 @@ export async function persistMeal(input: PersistInput): Promise<void> {
         per100g: c.nutrition.per100g as unknown as Record<string, number>,
         totals: c.nutrition.totals as unknown as Record<string, number>,
       },
+      ...(c.provenance && c.provenance.length > 0 ? { provenance: c.provenance } : {}),
     })),
     ...(cover ? { photo_path: cover.path } : {}),
     ...(movedPhotos.length > 0

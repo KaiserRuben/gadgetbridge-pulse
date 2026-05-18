@@ -48,6 +48,28 @@ export interface NutritionFacts {
   omega3_g?: number;
 }
 
+/**
+ * Provenance tag for a single component field. Mirror of
+ * `runner/src/jobs/types.ts:ProvenanceTag`; kept inline here so the
+ * dashboard doesn't have to import the runner-side type tree.
+ */
+export interface MealComponentProvenance {
+  field_path: string;
+  source:
+    | "wearable_sensor"
+    | "user_input"
+    | "vlm_inferred"
+    | "llm_derived"
+    | "rule_computed"
+    | "user_edited"
+    | "seed_data"
+    | "manual_log"
+    | "external_db";
+  external_id?: string;
+  captured_at?: string;
+  confidence?: number;
+}
+
 export interface MealComponent {
   id: string;
   ord: number;
@@ -57,6 +79,14 @@ export interface MealComponent {
   confidence: number | null; // 0..1 from VLM, null for user_add
   source: ComponentSource;
   nutrition: NutritionSnapshot;
+  /**
+   * Per-component provenance trail (Phase 2b). Optional + always read as an
+   * array by the meal-store (`[]` for legacy rows that predate M014).
+   * Optional in the public type so UI factories that construct a fresh
+   * `user_add` component aren't forced to make one up — the persist hop
+   * fills it in from the source enum.
+   */
+  provenance?: MealComponentProvenance[];
 }
 
 export interface MealRevision {

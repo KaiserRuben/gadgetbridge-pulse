@@ -11,8 +11,19 @@
  *     these before POSTing to Pi.
  */
 
+import type { ProvenanceTag } from "../jobs/types.ts";
+
 export type MealKind = "breakfast" | "lunch" | "dinner" | "snack" | "drink";
 export type ComponentSource = "vlm" | "user_edit" | "user_add" | "user_text";
+
+/**
+ * Where a per-100g nutrition row originated. Phase 2b widens this from the
+ * v2 enum of `('seed','llm')` to include external grounding sources:
+ *   - 'usda' — USDA FoodData Central (SR Legacy / Foundation / FNDDS).
+ *   - 'off'  — Open Food Facts (community-curated, German-preferred).
+ *   - 'user' — Manual user edit of the per-100g table.
+ */
+export type FoodNutritionSource = "seed" | "llm" | "usda" | "off" | "user";
 
 // ── Storage shape ───────────────────────────────────────────────────────────
 
@@ -49,6 +60,14 @@ export interface MealComponent {
   confidence: number | null;
   source: ComponentSource;
   nutrition: NutritionSnapshot;
+  /**
+   * Per-component provenance trail. Each tag binds a `field_path`
+   * (`identity`, `nutrition.per100g`, `grams`) to a source enum value, with
+   * optional `external_id` (FDC ID, OFF code) and `confidence`. Empty array
+   * is legal for legacy rows; readers fall back to `source` when the
+   * provenance array is missing or empty.
+   */
+  provenance: ProvenanceTag[];
 }
 
 /**

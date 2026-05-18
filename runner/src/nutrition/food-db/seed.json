@@ -80,6 +80,34 @@
     "matcha_latte_oat": {
       "label": "Matcha Latte mit Hafermilch",
       "per100g": { "kcal": 45, "protein_g": 0.8, "carbs_g": 6.7, "fat_g": 1.5, "calcium_mg": 120 }
+    },
+    "fladenbrot": {
+      "label": "Fladenbrot",
+      "per100g": { "kcal": 280, "protein_g": 9.0, "carbs_g": 53.0, "fat_g": 3.0, "fiber_g": 2.0, "iron_mg": 2.6, "sodium_mg": 530, "magnesium_mg": 30 }
+    },
+    "doener_broetchen": {
+      "label": "Dönerbrötchen",
+      "per100g": { "kcal": 250, "protein_g": 8.0, "carbs_g": 48.0, "fat_g": 3.0, "fiber_g": 2.5, "sodium_mg": 480 }
+    },
+    "doener_fleisch_huhn": {
+      "label": "Dönerfleisch Hähnchen",
+      "per100g": { "kcal": 200, "protein_g": 22.0, "carbs_g": 1.0, "fat_g": 12.0, "saturated_fat_g": 3.4, "iron_mg": 1.1, "vit_b12_ug": 0.3, "sodium_mg": 580 }
+    },
+    "doener_fleisch_kalb": {
+      "label": "Dönerfleisch Kalb",
+      "per100g": { "kcal": 250, "protein_g": 22.0, "carbs_g": 1.0, "fat_g": 18.0, "saturated_fat_g": 7.2, "iron_mg": 2.4, "vit_b12_ug": 1.8, "sodium_mg": 620, "zinc_mg": 4.5 }
+    },
+    "krautmix_doener": {
+      "label": "Krautmischung (rot + weiß)",
+      "per100g": { "kcal": 28, "protein_g": 1.3, "carbs_g": 5.5, "fat_g": 0.2, "fiber_g": 2.3, "vit_c_mg": 35, "calcium_mg": 40, "magnesium_mg": 14 }
+    },
+    "joghurt_knoblauch_sauce": {
+      "label": "Joghurt-Knoblauch-Sauce",
+      "per100g": { "kcal": 95, "protein_g": 3.8, "carbs_g": 4.0, "fat_g": 7.0, "saturated_fat_g": 4.0, "calcium_mg": 110, "sodium_mg": 320 }
+    },
+    "chili_oel": {
+      "label": "Chiliöl",
+      "per100g": { "kcal": 870, "protein_g": 0, "carbs_g": 0.5, "fat_g": 99.0, "saturated_fat_g": 12.0, "vit_c_mg": 5 }
     }
   }
 }

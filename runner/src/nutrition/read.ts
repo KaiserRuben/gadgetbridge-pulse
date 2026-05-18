@@ -11,6 +11,7 @@ import Database from "better-sqlite3";
 
 import { config } from "../config.ts";
 import { log } from "../logger.ts";
+import type { ProvenanceTag } from "../jobs/types.ts";
 import type {
   MealComponent,
   MealKind,
@@ -53,6 +54,7 @@ interface ComponentRow {
   confidence: number | null;
   source: MealComponent["source"];
   nutrition_json: string;
+  provenance_json: string | null;
 }
 
 let cachedDb: Database.Database | null = null;
@@ -94,6 +96,9 @@ function hydrate(row: MealRow, components: ComponentRow[]): StoredMeal {
         confidence: c.confidence,
         source: c.source,
         nutrition: parseJSON(c.nutrition_json, EMPTY_SNAPSHOT),
+        provenance: c.provenance_json
+          ? parseJSON<ProvenanceTag[]>(c.provenance_json, [])
+          : [],
       })),
   };
 }
@@ -113,7 +118,7 @@ export function readMealsForPeriod(periodKey: string): StoredMeal[] {
     const placeholders = ids.map(() => "?").join(",");
     const comps = conn
       .prepare<string[], ComponentRow>(
-        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json
+        `SELECT id, meal_id, ord, food_key, label, grams, confidence, source, nutrition_json, provenance_json
          FROM PULSE_MEAL_COMPONENT WHERE meal_id IN (${placeholders}) ORDER BY meal_id, ord`,
       )
       .all(...ids);

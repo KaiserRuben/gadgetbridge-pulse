@@ -10,10 +10,10 @@ import type { MessageRow } from "./chat";
  * remote endpoint is unreachable the caller queues; no degradation, per Q4.
  *
  * Endpoint = `OLLAMA_REMOTE_URL`. Default model = `OLLAMA_REMOTE_MODEL` or
- * `qwen3.6:latest`. Times out after `OLLAMA_REMOTE_TIMEOUT_MS` (default 90s).
+ * `qwen3.6:latest`. Times out after `OLLAMA_REMOTE_TIMEOUT_MS` (default 300s).
  */
 
-const DEFAULT_TIMEOUT_MS = 90_000;
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 export interface RemoteResult {
   ok: boolean;

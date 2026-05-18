@@ -92,7 +92,7 @@ export default async function NutritionDayPage({
                 {pattern.day_complete ? (
                   <Pill tone="up" size="sm">Tag abgeschlossen</Pill>
                 ) : (
-                  <Pill tone="steady" size="sm">Tag läuft</Pill>
+                  <Pill tone="steady" size="sm">Wird heute Nacht berechnet</Pill>
                 )}
                 {pattern.events.length > 1 && (
                   <Pill tone="low" size="sm">

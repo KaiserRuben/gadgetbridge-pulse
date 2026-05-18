@@ -21,6 +21,7 @@ import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
 import { ConfidenceBar } from "@/components/ui/confidence-bar";
 import { MacroStack } from "./MacroStack";
+import { ProvenanceBadge } from "./ProvenanceBadge";
 import type { MealComponent, NutritionFacts, NutritionSnapshot } from "@/lib/nutrition/types";
 import { cn } from "@/lib/cn";
 
@@ -219,8 +220,9 @@ function ComponentEditor({
               className="w-full bg-transparent text-[0.9375rem] font-medium focus:outline-none placeholder:text-faint"
               placeholder="Komponente"
             />
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="num-mono text-caption text-subtle truncate">{c.food_key}</span>
+              <ProvenanceBadge tags={c.provenance} />
               {c.source === "user_text" && (
                 <Pill tone="steady" size="sm">aus Text</Pill>
               )}
