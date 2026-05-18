@@ -583,6 +583,83 @@ const MIGRATIONS: readonly Migration[] = [
         WHERE status = 'pending';
     `,
   },
+  {
+    id: "M012_insight_jobcell",
+    sql: `
+      -- ── JobCell columns on PULSE_INSIGHT ────────────────────────────────
+      -- Turns each (period_key, scope, cluster) row into a self-describing
+      -- job cell. Lease semantics mirror PULSE_MEAL (M011): leased_at NULL
+      -- means available; non-null means a runner currently owns the row.
+      -- started_at is the first-claim timestamp (for "reprocessing" UI);
+      -- retries counts stale-lease sweeps so we can cap them at MAX_RETRIES.
+      ALTER TABLE PULSE_INSIGHT ADD COLUMN started_at TEXT;
+      ALTER TABLE PULSE_INSIGHT ADD COLUMN leased_at TEXT;
+      ALTER TABLE PULSE_INSIGHT ADD COLUMN error_text TEXT;
+      ALTER TABLE PULSE_INSIGHT ADD COLUMN retries INTEGER NOT NULL DEFAULT 0;
+
+      -- Backfill: rows that already have a payload (live/complete/partial)
+      -- get a started_at so the "never_computed" → "ready_*" mapping in
+      -- app/api/jobs/[cluster]/[key]/route.ts doesn't show them as fresh.
+      UPDATE PULSE_INSIGHT
+        SET started_at = updated_at
+        WHERE status IN ('live','complete','partial');
+
+      -- Lease-sweep index. WHERE leased_at IS NOT NULL keeps it tiny — the
+      -- in-flight set is usually a handful of rows across all clusters.
+      CREATE INDEX IF NOT EXISTS idx_insight_lease
+        ON PULSE_INSIGHT(leased_at, status)
+        WHERE leased_at IS NOT NULL;
+
+      -- Pending dispatch index. Covers the queue scan: "next available
+      -- cluster cell, oldest first, that still has retries left".
+      CREATE INDEX IF NOT EXISTS idx_insight_pending
+        ON PULSE_INSIGHT(status, retries, updated_at)
+        WHERE status = 'pending';
+    `,
+  },
+  {
+    id: "M013_food_nutrition_en_query",
+    sql: `
+      -- ── External-source grounding for per-100g lookup ───────────────────
+      -- Stage B grounding cascade adds USDA FoodData Central + Open Food
+      -- Facts as authoritative sources. en_query is the translated USDA
+      -- search term so we don't pay the ministral translation cost twice
+      -- for the same German food_key. Nullable: pre-existing 'seed' rows
+      -- never need it; 'usda' rows fill it on insert.
+      --
+      -- The CHECK constraint on PULSE_FOOD_NUTRITION.source was an enum of
+      -- ('seed','llm'). We widen it to also accept 'usda', 'off', 'user'.
+      -- SQLite can't ALTER a CHECK so we rebuild the table preserving rows.
+      ALTER TABLE PULSE_FOOD_NUTRITION ADD COLUMN en_query TEXT;
+
+      CREATE TABLE PULSE_FOOD_NUTRITION_NEW (
+        food_key TEXT PRIMARY KEY,
+        label TEXT,
+        source TEXT NOT NULL CHECK (source IN ('seed','llm','usda','off','user')),
+        model TEXT,
+        per_100g_json TEXT NOT NULL,
+        captured_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        en_query TEXT
+      );
+      INSERT INTO PULSE_FOOD_NUTRITION_NEW
+        (food_key, label, source, model, per_100g_json, captured_at, en_query)
+        SELECT food_key, label, source, model, per_100g_json, captured_at, en_query
+          FROM PULSE_FOOD_NUTRITION;
+      DROP TABLE PULSE_FOOD_NUTRITION;
+      ALTER TABLE PULSE_FOOD_NUTRITION_NEW RENAME TO PULSE_FOOD_NUTRITION;
+    `,
+  },
+  {
+    id: "M014_meal_component_provenance",
+    sql: `
+      -- ── Provenance per meal component ───────────────────────────────────
+      -- Phase 2b grounding pipeline tags each component with the source(s)
+      -- of its identity + nutrition values. Schema mirrors ProvenanceTag[]
+      -- from runner/src/jobs/types.ts. Nullable so pre-existing rows stay
+      -- intact; renderers fall back to component.source when absent.
+      ALTER TABLE PULSE_MEAL_COMPONENT ADD COLUMN provenance_json TEXT;
+    `,
+  },
 ];
 
 function ensureMigrationsTable(db: Database.Database): void {

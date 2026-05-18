@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "synthesis_v3_cluster.schema.json",
+  "title": "SynthesisV3Payload",
+  "description": "JobCell payload for cluster 'synthesis_v3'. Superset of the legacy SynthesisInsightV3 shape (runner/src/v3/schemas/synthesis_insight.schema.json) — adds the optional cluster-only fields `period_key` and `model`. The dual-write to daily_v3.json strips those two extras before atomic rename so the legacy file stays byte-stable. Keep this schema in sync with the legacy one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "verdict_band",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "key_insight",
+    "top_action_today",
+    "domain_pointers",
+    "contradictions",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "use_case/synthesis/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Auto-injected. true = artifact still in-flight or failed validation; writer flips to false at atomic-rename time."
+    },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"], "maxLength": 200 },
+    "verdict_band": {
+      "type": ["string", "null"],
+      "enum": ["above_usual", "steady", "below_usual", null]
+    },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "key_insight": { "type": ["string", "null"] },
+    "top_action_today": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reasoning", "source_domain", "anchor", "tiny", "why", "horizon"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "source_domain": { "enum": ["sleep", "recovery", "activity", "cross_domain"] },
+        "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+        "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+        "why": { "type": "string", "minLength": 8 },
+        "horizon": { "enum": ["today", "tonight"] }
+      }
+    },
+    "domain_pointers": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasoning",
+          "domain",
+          "label_de",
+          "kpi_id",
+          "kpi_value",
+          "kpi_band",
+          "callout"
+        ],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "domain": { "enum": ["sleep", "recovery", "activity"] },
+          "label_de": { "type": "string", "minLength": 3, "maxLength": 40 },
+          "kpi_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$" },
+          "kpi_value": { "type": "number", "minimum": 0, "maximum": 100 },
+          "kpi_band": { "enum": ["above_usual", "steady", "below_usual"] },
+          "callout": { "type": "string", "minLength": 8 }
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "domains", "conflict", "resolution"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "domains": {
+            "type": "array",
+            "items": { "enum": ["sleep", "recovery", "activity"] },
+            "minItems": 2,
+            "maxItems": 3
+          },
+          "conflict": { "type": "string", "minLength": 8 },
+          "resolution": { "type": "string", "minLength": 8 }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": "string", "minLength": 20 }
+      }
+    },
+    "model": { "type": "string", "maxLength": 80 },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+  }
+}

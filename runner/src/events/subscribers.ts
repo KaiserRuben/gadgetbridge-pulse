@@ -21,6 +21,7 @@ import { runV3, runV3Cluster, type V3Cluster } from "../v3-orchestrator.ts";
 import { runNutritionCluster } from "../v3/packagers/nutrition.ts";
 import { reconcileMeals } from "../nutrition/reconciler.ts";
 import { bus, type PulseEvent } from "./bus.ts";
+import { registerCellDispatcher } from "./cell-dispatcher.ts";
 
 async function runCluster(cluster: V3Cluster, periodKey: string): Promise<void> {
   try {
@@ -141,4 +142,8 @@ export function registerSubscribers(): void {
   bus.on("meal_logged_pending", onMealLoggedPending);
   bus.on("meal_classified", onMealClassifiedOrEdited);
   bus.on("meal_edited", onMealClassifiedOrEdited);
+  // Phase 2a cell dispatcher: every event fans out across the cluster
+  // registry, marking dependent cells stale and (if auto_process is on)
+  // enqueueing them. Empty registry until clusters register entries.
+  registerCellDispatcher();
 }

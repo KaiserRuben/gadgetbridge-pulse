@@ -147,6 +147,16 @@ export interface PushInsightInput {
   status: "pending" | "live" | "partial" | "complete";
   payload: unknown;
   source?: string;
+  /**
+   * JobCell columns (PULSE_INSIGHT M012). Forwarded to the Pi so the
+   * dashboard's DerivedCell polling sees the same lease/error state the
+   * runner just wrote locally. Omit to leave existing Pi values untouched
+   * (writeInsight uses COALESCE/NULL semantics).
+   */
+  startedAt?: string | null;
+  leasedAt?: string | null;
+  errorText?: string | null;
+  retries?: number | null;
 }
 
 export function pushInsight(input: PushInsightInput): Promise<IngestResult> {
@@ -249,6 +259,19 @@ export interface PushMealInput {
     confidence: number | null;
     source: "vlm" | "user_edit" | "user_add" | "user_text";
     nutrition: { per100g: Record<string, number>; totals: Record<string, number> };
+    /**
+     * Optional Phase 2b provenance tags. Pi stores as
+     * `PULSE_MEAL_COMPONENT.provenance_json` (raw JSON-string array). Older
+     * runners that don't carry provenance simply omit the field and the Pi
+     * persists NULL.
+     */
+    provenance?: Array<{
+      field_path: string;
+      source: string;
+      external_id?: string;
+      captured_at?: string;
+      confidence?: number;
+    }>;
   }>;
   /**
    * New cover photo path (relative to mealsRoot) after the runner moved the
@@ -276,10 +299,23 @@ export function pushMeal(input: PushMealInput): Promise<IngestResult> {
 export interface PushFoodInput {
   food_key: string;
   label: string | null;
-  source: "llm" | "seed";
+  /**
+   * Where the per-100g came from. Phase 2b widens this beyond the original
+   * `'llm' | 'seed'` v2 enum to include external authoritative sources
+   * (`'usda'`, `'off'`) and explicit manual overrides (`'user'`). The Pi's
+   * M013 migration widens the CHECK constraint to match.
+   */
+  source: "llm" | "seed" | "usda" | "off" | "user";
   model: string | null;
   per100g: Record<string, number>;
   captured_at: string;
+  /**
+   * The English search term used for USDA / OFF lookups (cached so the
+   * ministral translation only runs once per food_key). Persisted on the
+   * row even when `source==='llm'` so a later USDA enrichment for the
+   * same key can reuse it.
+   */
+  en_query?: string | null;
 }
 
 /**

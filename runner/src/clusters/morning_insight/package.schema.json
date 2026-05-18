@@ -1,0 +1,157 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "morning_insight_cluster.schema.json",
+  "title": "MorningInsightPayload",
+  "description": "JobCell payload for cluster 'morning_insight'. Superset of the legacy MorningInsightV1 shape (runner/src/v3/schemas/morning_insight.schema.json) — adds the optional cluster-only fields `period_key` and `model`. The dual-write to morning_insight.json strips those two extras before atomic rename so the legacy file stays byte-stable. Keep this schema in sync with the legacy one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "incomplete",
+    "language",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "verdict_band",
+    "training_recommendation",
+    "day_shape",
+    "care_for",
+    "levers",
+    "citations",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "use_case/morning/v1" },
+    "incomplete": {
+      "type": "boolean",
+      "description": "Auto-injected. true = artifact still in-flight or failed validation; writer flips to false at atomic-rename time."
+    },
+    "language": { "enum": ["de", "en"] },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"], "maxLength": 200 },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 140 },
+    "summary_long": { "type": ["string", "null"], "maxLength": 480 },
+    "verdict_band": {
+      "type": ["string", "null"],
+      "enum": ["above_usual", "steady", "below_usual", null]
+    },
+    "training_recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning", "suggested_session_template_id", "justification_de", "alternatives"],
+      "properties": {
+        "reasoning": { "type": "string", "maxLength": 480 },
+        "suggested_session_template_id": { "type": ["string", "null"], "maxLength": 60 },
+        "justification_de": { "type": ["string", "null"], "maxLength": 480 },
+        "alternatives": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 60 },
+          "maxItems": 4
+        }
+      }
+    },
+    "day_shape": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "anchor", "action_de", "horizon"],
+        "properties": {
+          "reasoning": { "type": "string", "maxLength": 280 },
+          "anchor": { "type": "string", "maxLength": 60 },
+          "action_de": { "type": "string", "maxLength": 140 },
+          "horizon": { "enum": ["morning", "midday", "afternoon", "evening", "day"] }
+        }
+      }
+    },
+    "care_for": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "area_de", "why_de", "action_de"],
+        "properties": {
+          "reasoning": { "type": "string", "maxLength": 280 },
+          "area_de": { "type": "string", "maxLength": 60 },
+          "why_de": { "type": "string", "maxLength": 240 },
+          "action_de": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "levers": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "lever", "domain", "confidence", "trajectory", "projection_90d", "tiny_next_step"],
+        "properties": {
+          "reasoning": { "type": "string", "maxLength": 480 },
+          "lever": { "type": "string", "maxLength": 60 },
+          "domain": { "type": "string", "maxLength": 30 },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "trajectory": { "type": "string", "maxLength": 240 },
+          "projection_90d": { "type": "string", "maxLength": 200 },
+          "interpretation": { "type": ["string", "null"], "maxLength": 240 },
+          "tiny_next_step": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["anchor", "tiny", "horizon"],
+            "properties": {
+              "anchor": { "type": "string", "maxLength": 60 },
+              "tiny": { "type": "string", "maxLength": 80 },
+              "horizon": { "enum": ["today", "tonight", "tomorrow", "this_week"] }
+            }
+          }
+        }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref_id", "summary"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "sleep_metric",
+              "recovery_metric",
+              "activity_metric",
+              "workout",
+              "pain_flag",
+              "actual_session",
+              "set_log",
+              "plan_version",
+              "adjustment_proposal",
+              "resolution_note",
+              "lever",
+              "surprise_insight",
+              "other"
+            ]
+          },
+          "ref_id": { "type": "string", "maxLength": 80 },
+          "summary": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": "string", "maxLength": 480 }
+      }
+    },
+    "model": { "type": "string", "maxLength": 80 },
+    "period_key": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+  }
+}

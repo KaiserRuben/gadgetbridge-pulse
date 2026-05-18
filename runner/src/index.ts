@@ -376,6 +376,11 @@ async function main() {
       } else {
         console.log(`[events-loop] ingest target: ${config.ingestBaseUrl}`);
       }
+      // JobCell worker: drains user-triggered + auto-process cells from the
+      // queue. Spawned alongside the bus so a single `events-loop` process
+      // covers both the event-driven pipeline and the cluster fan-out.
+      const { startWorker } = await import("./jobs/worker.ts");
+      startWorker();
       await eventsLoop({ lookbackDays: lookback });
       break;
     }

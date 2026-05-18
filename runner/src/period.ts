@@ -62,3 +62,41 @@ export function isoWeekKey(d: Date): string {
   const weekNo = Math.ceil((((t.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return `${t.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
+
+/**
+ * Map a YYYY-MM-DD wake-date to the ISO week key it belongs to. Cluster
+ * dependency declarations use this to fan a `day_end` event out to the
+ * containing weekly cell.
+ *
+ * Equivalent to `weekKeyFromDate` in `stageW-weekly.ts` but kept here so the
+ * helper is reachable from any caller without the heavy stage import. The
+ * stage module re-exports its own version for backwards compatibility.
+ */
+export function weekKeyForDate(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return isoWeekKey(new Date(Date.UTC(y, m - 1, d)));
+}
+
+/**
+ * 7 YYYY-MM-DD dates in `weekKey`, Monday → Sunday. Throws on a malformed
+ * key so callers don't silently feed an empty array into a 7-day window.
+ */
+export function datesInWeek(weekKey: string): string[] {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekKey);
+  if (!match) throw new Error(`datesInWeek: bad weekKey ${weekKey}`);
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  // ISO week 1 = the week containing Jan 4th. Mon of that week is the
+  // anchor; we then shift by (week - 1) * 7 days.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const week1Mon = new Date(jan4);
+  week1Mon.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(week1Mon);
+    d.setUTCDate(week1Mon.getUTCDate() + (week - 1) * 7 + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}

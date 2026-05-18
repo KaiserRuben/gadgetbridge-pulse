@@ -17,6 +17,7 @@
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^11.8.1",
     "chokidar": "^4.0.3",
+    "ioredis": "^5.10.1",
     "sharp": "^0.34.5",
     "undici": "^7.25.0"
   },

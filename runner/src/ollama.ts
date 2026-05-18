@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
+
 import { Agent, fetch as undiciFetch } from "undici";
 import { config } from "./config.ts";
+import { getRedis } from "./jobs/redis.ts";
 import { log } from "./logger.ts";
 
 /**
@@ -67,6 +70,83 @@ export type OllamaResult = {
   endpointUrl: string;
 };
 
+// ── Global single-slot GPU mutex ────────────────────────────────────────────
+//
+// Ollama itself serialises generation per-process, but the runner can issue
+// concurrent callOllama() invocations from independent code paths (stage
+// pipeline + on-demand chart route + meal classifier). The in-process
+// promise chain `gpuSlot` enforces FIFO serialisation across all of them.
+//
+// If Redis is reachable, we additionally hold `pulse:ollama:slot` with a
+// 600s TTL so a second runner instance (Mac + Pi co-processing) coordinates
+// across processes. A 30s refresh interval extends the lease so long
+// generations don't lose it. Fail-open: any Redis error falls back to
+// in-process-only.
+
+const REDIS_LOCK_KEY = "pulse:ollama:slot";
+const REDIS_LOCK_TTL_SEC = 600;
+const REDIS_LOCK_REFRESH_MS = 30_000;
+
+let gpuSlot: Promise<unknown> = Promise.resolve();
+
+async function acquireRedisSlot(): Promise<{ owner: string; refresh: NodeJS.Timeout | null } | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  const owner = randomUUID();
+  try {
+    // SET NX EX gives an atomic "create-or-fail" lock. We retry-on-busy with
+    // a short sleep loop bounded by the in-process gpuSlot serialisation —
+    // by the time we reach here, the in-process mutex already holds the
+    // call site exclusive on this runner.
+    const start = Date.now();
+    while (true) {
+      const ok = await redis.set(REDIS_LOCK_KEY, owner, "NX", "EX", REDIS_LOCK_TTL_SEC);
+      if (ok === "OK" || ok === 1 || ok === true) break;
+      if (Date.now() - start > REDIS_LOCK_TTL_SEC * 1000) {
+        log.warn("llm", `redis ollama lock wait > ${REDIS_LOCK_TTL_SEC}s — proceeding without lock`);
+        return null;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const refresh = setInterval(() => {
+      void (async () => {
+        try {
+          await redis.expire(REDIS_LOCK_KEY, REDIS_LOCK_TTL_SEC);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn("llm", `redis lock refresh failed: ${msg}`);
+        }
+      })();
+    }, REDIS_LOCK_REFRESH_MS);
+    return { owner, refresh };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("llm", `redis ollama lock acquire failed: ${msg}`);
+    return null;
+  }
+}
+
+const RELEASE_LUA = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+else
+  return 0
+end
+`;
+
+async function releaseRedisSlot(handle: { owner: string; refresh: NodeJS.Timeout | null } | null): Promise<void> {
+  if (!handle) return;
+  if (handle.refresh) clearInterval(handle.refresh);
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.eval(RELEASE_LUA, 1, REDIS_LOCK_KEY, handle.owner);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("llm", `redis ollama lock release failed: ${msg}`);
+  }
+}
+
 /** Resolve the configured remote URL, normalised (trailing slash stripped). */
 export function getRemoteOllamaUrl(): string | null {
   const raw = process.env.OLLAMA_REMOTE_URL?.trim();
@@ -82,8 +162,41 @@ export function getRemoteOllamaUrl(): string | null {
  * races a short-timeout probe against the remote host first and falls
  * back to the local instance on any error (timeout, 5xx, ECONNREFUSED).
  * Useful for the on-demand chart route where the user is waiting.
+ *
+ * Concurrency: a process-wide `gpuSlot` promise chain serialises every
+ * callOllama invocation. Concurrent callers see the chain extend; their
+ * actual POSTs run one-at-a-time. When Redis is configured, an additional
+ * cross-process lock prevents two runner instances from racing the same
+ * single-GPU Ollama backend.
  */
 export async function callOllama(params: OllamaCallParams): Promise<OllamaResult> {
+  // Chain onto gpuSlot. The previous occupant's resolution gates this one.
+  // We swap `gpuSlot` to a new promise that resolves when *this* call ends
+  // (success or failure) so the next caller waits on us.
+  const prev = gpuSlot;
+  let release!: () => void;
+  const ours = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  gpuSlot = ours;
+  try {
+    await prev.catch(() => undefined);
+    return await callOllamaInner(params);
+  } finally {
+    release();
+  }
+}
+
+async function callOllamaInner(params: OllamaCallParams): Promise<OllamaResult> {
+  const lockHandle = await acquireRedisSlot();
+  try {
+    return await postWithFallback(params);
+  } finally {
+    await releaseRedisSlot(lockHandle);
+  }
+}
+
+async function postWithFallback(params: OllamaCallParams): Promise<OllamaResult> {
   const localUrl = (params.baseUrl ?? config.ollamaUrl).replace(/\/+$/, "");
   const remoteUrl = params.preferRemote ? getRemoteOllamaUrl() : null;
   const remoteTimeoutMs = params.remoteTimeoutMs ?? REMOTE_PROBE_TIMEOUT_MS;

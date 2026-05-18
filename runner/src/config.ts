@@ -58,6 +58,24 @@ export const config = {
   /** Single model (v2 lock). qwen3.6 in production. */
   model: process.env.COACH_MODEL ?? "qwen3.6:latest",
 
+  /**
+   * Stage A agentic tool-loop kill switch (env: `NUTRITION_TOOLS_ENABLED`).
+   * Accepts "1"/"true"/"yes" to enable. When on, the classify VLM call
+   * is allowed to invoke the `search_nutrition` tool (max 5 calls/meal)
+   * to disambiguate food_keys against the seed / cache / USDA / OFF
+   * cascade before committing. Default off pending 4-photo A/B
+   * validation per `docs/wip/NUTRITION_TOOL_CALLING.md`.
+   *
+   * Note: `nutrition/stages/classify-vlm.ts` re-reads `process.env` at
+   * call time (not this snapshot) so the flag can be flipped per-run for
+   * the grounding probe without restarting the runner. This snapshot is
+   * informational / for log output only.
+   */
+  nutritionToolsEnabled: (() => {
+    const v = (process.env.NUTRITION_TOOLS_ENABLED ?? "").trim().toLowerCase();
+    return v === "1" || v === "true" || v === "yes";
+  })(),
+
   /** Local timezone for wake-date computation. */
   timezone: "Europe/Berlin",
 

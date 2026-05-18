@@ -19,6 +19,7 @@ x-runner-base: &runner-base
     PULSE_INGEST_BASE_URL: ${PULSE_INGEST_BASE_URL:-}
     PULSE_INGEST_TOKEN: ${PULSE_INGEST_TOKEN:-}
     PULSE_INGEST_OUTBOX_PATH: /data/ingest-outbox.db
+    USDA_FDC_API_KEY: ${USDA_FDC_API_KEY:-}
   volumes:
     - "${PULSE_ROOT:-./pulse}:/data"
     - ./src:/app/src:ro
