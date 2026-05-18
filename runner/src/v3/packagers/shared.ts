@@ -151,4 +151,51 @@ export function msToLocalMinutes(ms: number, tz: string): number {
   return hh * 60 + mm;
 }
 
+/**
+ * Format `ms` as ISO 8601 with the wall-clock components rendered in `tz` and
+ * an explicit numeric offset (e.g. "2026-05-18T00:30:00+02:00").
+ *
+ * `Date.toISOString()` emits the UTC instant with a trailing "Z", which the
+ * LLM reads as a wall-clock time and parrots back unshifted — so a 24:00–08:00
+ * Berlin night becomes "you slept from 22:00 to 06:00". Including local
+ * components plus offset keeps the absolute instant identical while making the
+ * user's actual local time visible in the prose.
+ */
+export function msToLocalIso(ms: number, tz: string): string {
+  const d = new Date(ms);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const yyyy = get("year");
+  const mo = get("month");
+  const dd = get("day");
+  let hh = get("hour");
+  if (hh === "24") hh = "00";
+  const mi = get("minute");
+  const ss = get("second");
+  const local = `${yyyy}-${mo}-${dd}T${hh}:${mi}:${ss}`;
+  const utcMs = Date.UTC(
+    Number(yyyy),
+    Number(mo) - 1,
+    Number(dd),
+    Number(hh),
+    Number(mi),
+    Number(ss),
+  );
+  const offsetMin = Math.round((utcMs - d.getTime()) / 60000);
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMin);
+  const oh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const om = String(abs % 60).padStart(2, "0");
+  return `${local}${sign}${oh}:${om}`;
+}
+
 export { madFn as mad, medianFn as median };

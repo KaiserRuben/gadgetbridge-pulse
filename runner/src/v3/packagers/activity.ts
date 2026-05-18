@@ -12,6 +12,7 @@ import {
   bucketBy,
   computeDeltas,
   mean,
+  msToLocalIso,
   pickBaselines,
   readFactsForDate,
   round1,
@@ -164,8 +165,8 @@ export function buildActivityPackage(opts: BuildActivityPackageOpts): ActivityPa
   const workouts = readWorkouts(opts.db, win, ageYears, tz);
   const stepsHourly = readStepsHourly(opts.db, win.startMs as number, win.endMs as number, tz);
   const stepsTotal = stepsHourly.reduce((s, h) => s + h.steps, 0);
-  const sedentaryBlocks = readSedentaryBlocks(opts.db, win.startMs as number, win.endMs as number);
-  const awakeHr = readAwakeHrBuckets(opts.db, win.startMs as number, win.endMs as number, sleepFacts);
+  const sedentaryBlocks = readSedentaryBlocks(opts.db, win.startMs as number, win.endMs as number, tz);
+  const awakeHr = readAwakeHrBuckets(opts.db, win.startMs as number, win.endMs as number, sleepFacts, tz);
   const hrZones = computeHrZones(opts.db, win.startMs as number, win.endMs as number, sleepFacts);
 
   const last2 = readActivityAggregates(opts.insightsRoot, opts.periodKey, [1, 2], opts.db, tz, ageYears);
@@ -249,15 +250,16 @@ function pickSleepFacts(m: Record<string, number | null>) {
 
 // ── Workouts ────────────────────────────────────────────────────────────────
 
-function workoutItemToFull(item: WorkoutFactsItem): WorkoutFull {
-  const endMs = new Date(item.start_iso).getTime() + item.duration_s * 1000;
+function workoutItemToFull(item: WorkoutFactsItem, tz: string): WorkoutFull {
+  const startMs = new Date(item.start_iso).getTime();
+  const endMs = startMs + item.duration_s * 1000;
   const avgSpeed =
     item.distance_m != null && item.duration_s > 0
       ? +(item.distance_m / item.duration_s).toFixed(3)
       : null;
   return {
-    ts_start_iso: item.start_iso,
-    ts_end_iso: new Date(endMs).toISOString(),
+    ts_start_iso: msToLocalIso(startMs, tz),
+    ts_end_iso: msToLocalIso(endMs, tz),
     kind: item.type,
     name: null,
     duration_min: Math.max(0, Math.round(item.duration_s / 60)),
@@ -281,9 +283,9 @@ function readWorkouts(
   db: Database.Database,
   win: ReturnType<typeof dayWindow>,
   ageYears: number | null,
-  _tz: string,
+  tz: string,
 ): WorkoutFull[] {
-  return queryWorkouts(db, win, ageYears).map(workoutItemToFull);
+  return queryWorkouts(db, win, ageYears).map((item) => workoutItemToFull(item, tz));
 }
 
 function sumTrainingLoad(
@@ -349,6 +351,7 @@ function readSedentaryBlocks(
   db: Database.Database,
   startMs: number,
   endMs: number,
+  tz: string,
 ): SedentaryBlock[] {
   const startSec = Math.floor(startMs / 1000);
   const endSec = Math.floor(endMs / 1000);
@@ -374,21 +377,21 @@ function readSedentaryBlocks(
       if (runStart == null) runStart = t;
       runEnd = t + 60_000;
     } else if (runStart != null && runEnd != null) {
-      pushBlock(blocks, runStart, runEnd);
+      pushBlock(blocks, runStart, runEnd, tz);
       runStart = null;
       runEnd = null;
     }
   }
-  if (runStart != null && runEnd != null) pushBlock(blocks, runStart, runEnd);
+  if (runStart != null && runEnd != null) pushBlock(blocks, runStart, runEnd, tz);
   return blocks;
 }
 
-function pushBlock(out: SedentaryBlock[], startMs: number, endMs: number) {
+function pushBlock(out: SedentaryBlock[], startMs: number, endMs: number, tz: string) {
   const durMin = Math.round((endMs - startMs) / 60_000);
   if (durMin < SEDENTARY_BLOCK_MIN_DURATION) return;
   out.push({
-    start_iso: new Date(startMs).toISOString(),
-    end_iso: new Date(endMs).toISOString(),
+    start_iso: msToLocalIso(startMs, tz),
+    end_iso: msToLocalIso(endMs, tz),
     duration_min: durMin,
   });
 }
@@ -405,6 +408,7 @@ function readAwakeHrBuckets(
   startMs: number,
   endMs: number,
   sleepFacts: Record<string, number | null>,
+  tz: string,
 ): AwakeHrBucket[] {
   const startSec = Math.floor(startMs / 1000);
   const endSec = Math.floor(endMs / 1000);
@@ -436,7 +440,7 @@ function readAwakeHrBuckets(
     (r) => r.HEART_RATE,
     HR_BUCKET_MIN * 60_000,
     (ts, vals) => ({
-      ts_iso: new Date(ts).toISOString(),
+      ts_iso: msToLocalIso(ts, tz),
       bpm_mean: Math.round(mean(vals)),
       bpm_max: Math.max(...vals),
       n_samples: vals.length,

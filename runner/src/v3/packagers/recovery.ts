@@ -12,6 +12,7 @@ import {
   bucketBy,
   computeDeltas,
   mean,
+  msToLocalIso,
   pickBaselines,
   readFactsForDate,
   round1,
@@ -136,7 +137,7 @@ export function buildRecoveryPackage(opts: BuildRecoveryPackageOpts): RecoveryPa
   const factsToday = readFactsForDate(opts.insightsRoot, opts.periodKey);
 
   // HRV series across the day (during waking + sleep, all in one).
-  const hrvSeries = readHrvSeries(opts.db, win.startMs as number, win.endMs as number);
+  const hrvSeries = readHrvSeries(opts.db, win.startMs as number, win.endMs as number, tz);
   const latestRmssd = hrvSeries.length > 0 ? hrvSeries[hrvSeries.length - 1].value_ms : null;
   const rmssdDayMean =
     hrvSeries.length > 0
@@ -152,7 +153,7 @@ export function buildRecoveryPackage(opts: BuildRecoveryPackageOpts): RecoveryPa
   const rhrSleep = sleepFacts.rhr_sleep_bpm ?? null;
   const rhrDrift = rhrDay != null && rhrSleep != null ? round1(rhrDay - rhrSleep) : null;
 
-  const awakeHr = readAwakeHrBuckets(opts.db, win.startMs as number, win.endMs as number, sleepFacts);
+  const awakeHr = readAwakeHrBuckets(opts.db, win.startMs as number, win.endMs as number, sleepFacts, tz);
 
   const last2 = readRecoveryAggregates(opts.insightsRoot, opts.periodKey, [1, 2]);
   const days37 = readRecoveryAggregates(opts.insightsRoot, opts.periodKey, [3, 4, 5, 6, 7]);
@@ -180,9 +181,9 @@ export function buildRecoveryPackage(opts: BuildRecoveryPackageOpts): RecoveryPa
 
   const ageYears = (factsToday?.user as { age?: number | null } | undefined)?.age ?? null;
   // Context: last night sleep + workouts (today + yesterday) + 7d training load.
-  const todayWorkouts = readWorkouts(opts.db, win, ageYears);
+  const todayWorkouts = readWorkouts(opts.db, win, ageYears, tz);
   const yWin = dayWindow(shiftDateKey(opts.periodKey, 1), tz);
-  const yesterdayWorkouts = readWorkouts(opts.db, yWin, ageYears);
+  const yesterdayWorkouts = readWorkouts(opts.db, yWin, ageYears, tz);
 
   const trainingLoad7d = sumTrainingLoad(opts.db, opts.periodKey, 7, tz, ageYears);
 
@@ -244,7 +245,12 @@ export function buildRecoveryPackage(opts: BuildRecoveryPackageOpts): RecoveryPa
 
 // ── HRV series ───────────────────────────────────────────────────────────────
 
-function readHrvSeries(db: Database.Database, startMs: number, endMs: number): HrvPoint[] {
+function readHrvSeries(
+  db: Database.Database,
+  startMs: number,
+  endMs: number,
+  tz: string,
+): HrvPoint[] {
   const rows = db
     .prepare<[number, number], { TIMESTAMP: number; VALUE: number }>(
       `SELECT TIMESTAMP, VALUE
@@ -255,7 +261,7 @@ function readHrvSeries(db: Database.Database, startMs: number, endMs: number): H
     )
     .all(startMs, endMs);
   return rows.map((r) => ({
-    ts_iso: new Date(r.TIMESTAMP).toISOString(),
+    ts_iso: msToLocalIso(r.TIMESTAMP, tz),
     value_ms: r.VALUE,
   }));
 }
@@ -272,6 +278,7 @@ function readAwakeHrBuckets(
   startMs: number,
   endMs: number,
   sleepFacts: Record<string, number | null>,
+  tz: string,
 ): AwakeHrBucket[] {
   const startSec = Math.floor(startMs / 1000);
   const endSec = Math.floor(endMs / 1000);
@@ -307,7 +314,7 @@ function readAwakeHrBuckets(
     (r) => r.HEART_RATE,
     HR_BUCKET_MIN * 60_000,
     (ts, vals) => ({
-      ts_iso: new Date(ts).toISOString(),
+      ts_iso: msToLocalIso(ts, tz),
       bpm_mean: Math.round(mean(vals)),
       bpm_min: Math.min(...vals),
       bpm_max: Math.max(...vals),
@@ -318,11 +325,12 @@ function readAwakeHrBuckets(
 
 // ── Workouts ────────────────────────────────────────────────────────────────
 
-function workoutItemToLite(item: WorkoutFactsItem): WorkoutLite {
-  const endMs = new Date(item.start_iso).getTime() + item.duration_s * 1000;
+function workoutItemToLite(item: WorkoutFactsItem, tz: string): WorkoutLite {
+  const startMs = new Date(item.start_iso).getTime();
+  const endMs = startMs + item.duration_s * 1000;
   return {
-    ts_start_iso: item.start_iso,
-    ts_end_iso: new Date(endMs).toISOString(),
+    ts_start_iso: msToLocalIso(startMs, tz),
+    ts_end_iso: msToLocalIso(endMs, tz),
     kind: item.type,
     name: null,
     duration_min: Math.max(0, Math.round(item.duration_s / 60)),
@@ -339,8 +347,9 @@ function readWorkouts(
   db: Database.Database,
   win: ReturnType<typeof dayWindow>,
   ageYears: number | null,
+  tz: string,
 ): WorkoutLite[] {
-  return queryWorkouts(db, win, ageYears).map(workoutItemToLite);
+  return queryWorkouts(db, win, ageYears).map((item) => workoutItemToLite(item, tz));
 }
 
 function sumTrainingLoad(

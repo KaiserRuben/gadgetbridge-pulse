@@ -19,6 +19,7 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { dayWindow, shiftDateKey } from "../../facts/window.ts";
 import { median, mad, zRobust } from "../../rules/stats.ts";
+import { msToLocalIso } from "./shared.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -290,11 +291,11 @@ function buildTodaySummary(
   // Huawei stores 0/-1 sentinels in BED_TIME/WAKEUP_TIME; treat ≤0 as missing.
   const bedMsValid = stats?.BED_TIME && stats.BED_TIME > 0 ? stats.BED_TIME : null;
   const wakeMsValid = stats?.WAKEUP_TIME && stats.WAKEUP_TIME > 0 ? stats.WAKEUP_TIME : null;
-  const bedtimeIso = bedMsValid ? new Date(bedMsValid).toISOString() : null;
-  const wakeIso = wakeMsValid ? new Date(wakeMsValid).toISOString() : null;
+  const bedtimeIso = bedMsValid ? msToLocalIso(bedMsValid, tz) : null;
+  const wakeIso = wakeMsValid ? msToLocalIso(wakeMsValid, tz) : null;
   const midpointMs =
     bedMsValid && wakeMsValid ? Math.round((bedMsValid + wakeMsValid) / 2) : null;
-  const midpointIso = midpointMs ? new Date(midpointMs).toISOString() : null;
+  const midpointIso = midpointMs ? msToLocalIso(midpointMs, tz) : null;
   const midpointMin = midpointMs ? msToLocalMinutes(midpointMs, tz) : null;
 
   const tibMin =
@@ -370,25 +371,31 @@ function collapseStagesTimeline(
     if (r.STAGE === segStage && Math.abs(gap) < 90_000) {
       segEnd = r.TIMESTAMP + 60_000;
     } else {
-      pushSeg(segments, segStart, segEnd, segStage);
+      pushSeg(segments, segStart, segEnd, segStage, _tz);
       segStart = r.TIMESTAMP;
       segStage = r.STAGE;
       segEnd = r.TIMESTAMP + 60_000;
     }
   }
-  pushSeg(segments, segStart, segEnd, segStage);
+  pushSeg(segments, segStart, segEnd, segStage, _tz);
 
   return segments;
 }
 
-function pushSeg(out: StageSegment[], startMs: number, endMs: number, stageCode: number) {
+function pushSeg(
+  out: StageSegment[],
+  startMs: number,
+  endMs: number,
+  stageCode: number,
+  tz: string,
+) {
   const stage = STAGE_CODE[stageCode];
   if (!stage) return;
   const durMin = Math.round((endMs - startMs) / 60_000);
   if (durMin <= 0) return;
   out.push({
-    start_iso: new Date(startMs).toISOString(),
-    end_iso: new Date(endMs).toISOString(),
+    start_iso: msToLocalIso(startMs, tz),
+    end_iso: msToLocalIso(endMs, tz),
     stage,
     duration_min: durMin,
   });
@@ -406,7 +413,7 @@ function bucketHrSleep(
   db: Database.Database,
   startMs: number,
   endMs: number,
-  _tz: string,
+  tz: string,
 ): HrBucket[] {
   const startSec = Math.floor(startMs / 1000);
   const endSec = Math.floor(endMs / 1000);
@@ -425,7 +432,7 @@ function bucketHrSleep(
     (r) => r.TIMESTAMP * 1000,
     (r) => r.HEART_RATE,
     (ts, vals) => ({
-      ts_iso: new Date(ts).toISOString(),
+      ts_iso: msToLocalIso(ts, tz),
       bpm_mean: Math.round(mean(vals)),
       bpm_min: Math.min(...vals),
       bpm_max: Math.max(...vals),
@@ -438,7 +445,7 @@ function bucketSpo2Sleep(
   db: Database.Database,
   startMs: number,
   endMs: number,
-  _tz: string,
+  tz: string,
 ): Spo2Bucket[] {
   const startSec = Math.floor(startMs / 1000);
   const endSec = Math.floor(endMs / 1000);
@@ -457,7 +464,7 @@ function bucketSpo2Sleep(
     (r) => r.TIMESTAMP * 1000,
     (r) => r.SPO,
     (ts, vals) => ({
-      ts_iso: new Date(ts).toISOString(),
+      ts_iso: msToLocalIso(ts, tz),
       pct_mean: Math.round(mean(vals) * 10) / 10,
       pct_min: Math.min(...vals),
       n_samples: vals.length,
@@ -609,7 +616,12 @@ interface WorkoutRow {
   SUMMARY_DATA: string | null;
 }
 
-function readWorkouts(db: Database.Database, startMs: number, endMs: number): WorkoutEntry[] {
+function readWorkouts(
+  db: Database.Database,
+  startMs: number,
+  endMs: number,
+  tz: string,
+): WorkoutEntry[] {
   let rows: WorkoutRow[] = [];
   try {
     rows = db
@@ -623,15 +635,15 @@ function readWorkouts(db: Database.Database, startMs: number, endMs: number): Wo
   } catch {
     return [];
   }
-  return rows.map(parseWorkout);
+  return rows.map((r) => parseWorkout(r, tz));
 }
 
-function parseWorkout(r: WorkoutRow): WorkoutEntry {
+function parseWorkout(r: WorkoutRow, tz: string): WorkoutEntry {
   const sd = parseSummaryData(r.SUMMARY_DATA);
   const durMin = Math.max(0, Math.round((r.END_TIME - r.START_TIME) / 60_000));
   return {
-    ts_start_iso: new Date(r.START_TIME).toISOString(),
-    ts_end_iso: new Date(r.END_TIME).toISOString(),
+    ts_start_iso: msToLocalIso(r.START_TIME, tz),
+    ts_end_iso: msToLocalIso(r.END_TIME, tz),
     kind: r.ACTIVITY_KIND,
     name: r.NAME,
     duration_min: durMin,
@@ -674,8 +686,8 @@ function buildContext(
   const win = dayWindow(periodKey, tz);
   const yWin = dayWindow(shiftDateKey(periodKey, 1), tz);
 
-  const todayWorkouts = readWorkouts(db, win.startMs as number, win.endMs as number);
-  const yesterdayWorkouts = readWorkouts(db, yWin.startMs as number, yWin.endMs as number);
+  const todayWorkouts = readWorkouts(db, win.startMs as number, win.endMs as number, tz);
+  const yesterdayWorkouts = readWorkouts(db, yWin.startMs as number, yWin.endMs as number, tz);
 
   const stressToday = (factsToday?.stress as { metrics?: Record<string, number | null> } | undefined)?.metrics ?? {};
   const factsYesterday = readFactsForDate(insightsRoot, shiftDateKey(periodKey, 1));
