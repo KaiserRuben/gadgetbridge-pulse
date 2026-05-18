@@ -10,17 +10,15 @@ import { todayKey } from "@/lib/time";
 import { isWeekKey, fmtWeekRange, weekDateRange, weekDayDate, shiftWeek, dateToWeekKey } from "@/lib/week";
 import { fmtInt } from "@/lib/format";
 import type { FactsBundleV2, WeeklyRecapV2 } from "@/lib/types/generated";
+import type { WeeklyRecapPayload } from "@/runner/clusters/weekly_recap/types";
 
-import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { Glyph, type GlyphName } from "@/components/ui/glyph";
+import { Glyph } from "@/components/ui/glyph";
 import { Stat } from "@/components/ui/stat";
-import { ConfidenceBar } from "@/components/ui/confidence-bar";
-import { FadeRise } from "@/components/motion/fade-rise";
-import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { Section } from "@/components/ui/section";
 import { BandStrip } from "@/components/charts/band-strip";
+import { WeeklyRecapCell } from "@/components/domain/weekly-recap-cell";
 
 const SYNC_ROOT = process.env.PULSE_ROOT ?? "./pulse";
 const INSIGHTS_ROOT = process.env.INSIGHTS_ROOT ?? path.join(SYNC_ROOT, "insights");
@@ -37,16 +35,27 @@ export default async function WeekPage({
   }
   if (!isWeekKey(weekKey)) notFound();
 
+  // Legacy file-read kept as fallback for the JobCell DerivedCell — until
+  // the dual-write window closes and every reader speaks JobCell, the
+  // weekly.json on disk is still the source of truth for the first
+  // render before the cluster cell exists in PULSE_INSIGHT.
   const weekly = await loadWeekly(weekKey);
   const range = weekDateRange(weekKey);
   if (!range) notFound();
 
-  // Always load 7 days of daily + facts for the strip + degraded fallback.
+  // Always load 7 days of daily + facts for the strip + aggregate stats.
   const dates = Array.from({ length: 7 }, (_, i) => weekDayDate(weekKey, i)!);
   const [dailies, facts] = await Promise.all([
     Promise.all(dates.map((d) => loadDaily(d))),
     Promise.all(dates.map((d) => loadFacts(d))),
   ]);
+
+  // Map legacy WeeklyRecapV2 → cluster WeeklyRecapPayload so DerivedCell
+  // can render the file payload as its initial state. The cluster cell
+  // takes over the moment the worker writes the row.
+  const fallbackPayload: WeeklyRecapPayload | null = weekly
+    ? weeklyV2ToPayload(weekly, weekKey)
+    : null;
 
   const stripItems = dates.map((d, i) => {
     const daily = dailies[i];
@@ -91,38 +100,13 @@ export default async function WeekPage({
         </nav>
       </div>
 
-      {/* Trajectory headline (LLM) or aggregate fallback */}
-      {weekly && !weekly.abstain ? (
-        <FadeRise>
-          <Card glow="sleep">
-            <CardBody className="p-5 md:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <TrajectoryTile icon="Moon" tone="sleep" label="Erholung" text={weekly.trajectory_headline.recovery} />
-              <TrajectoryTile icon="Footprints" tone="activity" label="Bewegung" text={weekly.trajectory_headline.activity} />
-              <TrajectoryTile icon="Waves" tone="stress" label="Stress" text={weekly.trajectory_headline.stress} />
-              <div className="md:col-span-3">
-                <ConfidenceBar value={weekly.confidence.value} />
-              </div>
-            </CardBody>
-          </Card>
-        </FadeRise>
-      ) : (
-        <FadeRise>
-          <Card variant="soft">
-            <CardBody className="p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Eyebrow>Aggregat</Eyebrow>
-                {weekly?.abstain && <Pill tone="steady" size="sm">Coach pausiert</Pill>}
-                {!weekly && <Pill tone="steady" size="sm">Kein Wochen-Insight</Pill>}
-              </div>
-              <p className="text-body text-muted max-w-[60ch]">
-                {weekly?.abstain_reason ?? "Der Wochen-Coach hat noch keinen Recap erzeugt. Aggregat aus Tages-Facts unten."}
-              </p>
-            </CardBody>
-          </Card>
-        </FadeRise>
-      )}
+      {/* Trajectory + patterns + streaks + experiment — driven by the
+          weekly_recap JobCell. DerivedCell handles polling, cached
+          delivery, and the "Erklärung anfordern" CTA when the cell is
+          empty. */}
+      <WeeklyRecapCell weekKey={weekKey} fallbackPayload={fallbackPayload} />
 
-      {/* Aggregate stats from facts */}
+      {/* Aggregate stats from facts — deterministic, server-rendered. */}
       <Section eyebrow="Aggregat" title={`${aggregate.daysWithData} Tage mit Daten`}>
         <Card>
           <CardBody className="p-5 grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -135,7 +119,7 @@ export default async function WeekPage({
         </Card>
       </Section>
 
-      {/* 7-day strip */}
+      {/* 7-day strip — deterministic, server-rendered. */}
       <Section eyebrow="Tagesverlauf" title="Score je Tag">
         <Card variant="soft">
           <CardBody className="p-5">
@@ -143,146 +127,44 @@ export default async function WeekPage({
           </CardBody>
         </Card>
       </Section>
-
-      {/* Pattern callouts */}
-      {weekly?.pattern_callouts && weekly.pattern_callouts.length > 0 && (
-        <Section eyebrow="Muster" title={`${weekly.pattern_callouts.length} wiederholte Beobachtungen`}>
-          <Stagger className="grid grid-cols-1 lg:grid-cols-2 gap-3" step={0.05}>
-            {weekly.pattern_callouts.map((p) => (
-              <StaggerItem key={p.id}>
-                <Card>
-                  <CardBody className="p-5 flex flex-col gap-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Pill tone="neutral" size="sm">{p.occurrences}× diese Woche</Pill>
-                      <span className="text-caption">{p.domains.join(" · ")}</span>
-                    </div>
-                    <p className="text-[0.9375rem]">{p.description}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {p.days.map((d) => (
-                        <Link
-                          key={d}
-                          href={`/?d=${d}`}
-                          className="num-mono text-caption px-2 py-0.5 rounded-md bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-hover)]"
-                        >
-                          {fmtMd(d)}
-                        </Link>
-                      ))}
-                    </div>
-                  </CardBody>
-                </Card>
-              </StaggerItem>
-            ))}
-          </Stagger>
-        </Section>
-      )}
-
-      {/* Streaks + records */}
-      {(weekly?.streaks?.length ?? 0) > 0 || weekly?.personal_best || weekly?.personal_worst ? (
-        <Section eyebrow="Höhepunkte" title="Streaks & Rekorde">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {weekly?.streaks?.map((s) => (
-              <Card key={s.id}>
-                <CardBody className="p-5 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <Glyph name="Flame" size={16} className="text-[var(--color-stress)]" />
-                    <Eyebrow>Streak</Eyebrow>
-                  </div>
-                  <p className="text-[0.9375rem]">{s.label}</p>
-                  <div className="flex items-baseline gap-1.5 mt-auto">
-                    <span className="num text-[1.625rem] font-semibold">{s.length_days}</span>
-                    <span className="text-caption">Tage · {s.metric_id}</span>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-            {weekly?.personal_best && (
-              <Card glow="activity">
-                <CardBody className="p-5 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <Glyph name="Trophy" size={16} className="text-[var(--color-activity)]" />
-                    <Eyebrow>Bester Tag</Eyebrow>
-                  </div>
-                  <Link href={`/?d=${weekly.personal_best.date}`} className="text-[0.9375rem] hover:underline">
-                    {weekly.personal_best.metric_id}: <span className="num-mono">{weekly.personal_best.value.toFixed(1)}</span>
-                  </Link>
-                  {weekly.personal_best.note && (
-                    <p className="text-caption text-subtle">{weekly.personal_best.note}</p>
-                  )}
-                  <span className="text-caption mt-auto">{fmtMd(weekly.personal_best.date)}</span>
-                </CardBody>
-              </Card>
-            )}
-            {weekly?.personal_worst && (
-              <Card>
-                <CardBody className="p-5 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <Glyph name="Mountain" size={16} className="text-[var(--color-heart)]" />
-                    <Eyebrow>Schwerster Tag</Eyebrow>
-                  </div>
-                  <Link href={`/?d=${weekly.personal_worst.date}`} className="text-[0.9375rem] hover:underline">
-                    {weekly.personal_worst.metric_id}: <span className="num-mono">{weekly.personal_worst.value.toFixed(1)}</span>
-                  </Link>
-                  <p className="text-caption text-subtle">{weekly.personal_worst.action_or_note}</p>
-                  <span className="text-caption mt-auto">{fmtMd(weekly.personal_worst.date)}</span>
-                </CardBody>
-              </Card>
-            )}
-          </div>
-        </Section>
-      ) : null}
-
-      {/* Micro-experiment */}
-      {weekly?.micro_experiment && (
-        <Section eyebrow="Micro-Experiment" title="Hypothese der Woche">
-          <Card glow="sleep">
-            <CardBody className="p-5 lg:p-6 flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Glyph name="Sparkles" size={16} className="text-[var(--color-sleep)]" />
-                <Pill tone="sleep" size="sm">{weekly.micro_experiment.duration_days} Tage</Pill>
-                <span className="text-caption">Ziel · {weekly.micro_experiment.target_metric_id}</span>
-              </div>
-              <p className="text-[1.0625rem] leading-snug max-w-[60ch]">{weekly.micro_experiment.hypothesis}</p>
-              <ol className="flex flex-col gap-2 text-[0.9375rem]">
-                <li className="flex gap-3 items-baseline">
-                  <span className="num-mono text-caption text-subtle w-8">Wenn</span>
-                  <span>{weekly.micro_experiment.anchor}</span>
-                </li>
-                <li className="flex gap-3 items-baseline">
-                  <span className="num-mono text-caption text-subtle w-8">Dann</span>
-                  <span>{weekly.micro_experiment.tiny}</span>
-                </li>
-                <li className="flex gap-3 items-baseline">
-                  <span className="num-mono text-caption text-subtle w-8">Sonst</span>
-                  <span className="text-subtle">{weekly.micro_experiment.fallback}</span>
-                </li>
-              </ol>
-            </CardBody>
-          </Card>
-        </Section>
-      )}
     </div>
   );
 }
 
-function TrajectoryTile({
-  icon, tone, label, text,
-}: {
-  icon: GlyphName;
-  tone: "sleep" | "activity" | "stress";
-  label: string;
-  text: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className={`grid place-items-center size-10 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-${tone})]`}>
-        <Glyph name={icon} size={18} />
-      </span>
-      <div className="flex flex-col gap-1 min-w-0">
-        <Eyebrow>{label}</Eyebrow>
-        <p className="text-[0.9375rem] leading-snug">{text}</p>
-      </div>
-    </div>
-  );
+/**
+ * Map the legacy `weekly.json` payload to the cluster cell's payload
+ * shape, used as the seed `fallbackPayload` for `<WeeklyRecapCell>`. The
+ * two shapes only differ in `week_key` (added) and `reasoning_trace`
+ * (optional on the cluster payload), so the conversion is straight
+ * field-copy.
+ */
+function weeklyV2ToPayload(weekly: WeeklyRecapV2, weekKey: string): WeeklyRecapPayload {
+  return {
+    week_key: weekKey,
+    schema_version: "weekly/v2",
+    language: weekly.language,
+    reasoning_trace: weekly.reasoning_trace,
+    abstain: weekly.abstain,
+    abstain_reason: weekly.abstain_reason,
+    trajectory_headline: weekly.trajectory_headline,
+    chart_refs: [...weekly.chart_refs],
+    pattern_callouts: [...weekly.pattern_callouts],
+    streaks: [...weekly.streaks],
+    personal_best: weekly.personal_best
+      ? { ...weekly.personal_best }
+      : null,
+    personal_worst: weekly.personal_worst
+      ? { ...weekly.personal_worst }
+      : null,
+    micro_experiment: weekly.micro_experiment
+      ? { ...weekly.micro_experiment }
+      : null,
+    confidence: {
+      value: weekly.confidence.value,
+      calc: weekly.confidence.calc,
+      factors: [...weekly.confidence.factors],
+    },
+  };
 }
 
 async function loadFacts(date: string): Promise<FactsBundleV2 | null> {
@@ -334,11 +216,3 @@ function fmtMin(min: number): string {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-function fmtMd(date: string): string {
-  if (!date || date.length < 10) return date;
-  const [, m, d] = date.split("-");
-  return `${Number(d)}.${Number(m)}.`;
-}
-
-// keep WeeklyRecapV2 reference for the bundler
-type _ = WeeklyRecapV2;

@@ -7,6 +7,7 @@ import { fmtInt } from "@/lib/format";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
@@ -28,12 +29,7 @@ export default async function WorkoutsPage() {
       </FadeRise>
 
       {workouts.length === 0 && (
-        <Card variant="soft">
-          <CardBody className="p-6 grid place-items-center gap-2 text-center text-caption">
-            <Glyph name="Activity" size={18} className="text-subtle" />
-            Noch keine aufgezeichneten Trainings.
-          </CardBody>
-        </Card>
+        <EmptyStateCard cause="no_data" headline="Keine Workouts erfasst" />
       )}
 
       {Object.entries(grouped).map(([monthKey, list]) => (

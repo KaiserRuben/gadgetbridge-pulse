@@ -212,6 +212,11 @@
     letter-spacing: -0.015em;
     line-height: 1.2;
   }
+  /* U1 tokens — codify what existed as ad-hoc `text-[…]` strings. */
+  .text-h2-tight { font-size: 1.625rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; }
+  .text-num-lg   { font-size: 1.5rem;  line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .text-num-md   { font-size: 1.25rem; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .text-tick     { font-size: 0.625rem; line-height: 1; color: var(--color-text-muted); font-weight: 500; }
   .text-title  { font-size: 1rem; font-weight: 600; letter-spacing: -0.005em; }
   .text-body   { font-size: 0.9375rem; line-height: 1.6; }
   .text-body-sm{ font-size: 0.8125rem; line-height: 1.5; }

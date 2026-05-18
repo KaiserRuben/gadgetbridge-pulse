@@ -15,8 +15,6 @@ import {
   type LoadPoint,
 } from "@/lib/queries/workouts";
 import { stitchWorkouts } from "@/lib/queries/workout-stitch";
-import { loadDaily, loadDailyStatus } from "@/lib/insights";
-import { loadMorningInsight } from "@/lib/v3-loaders";
 import { loadActivityInsight } from "@/lib/v3-loaders";
 import { readEffectiveUserAttributes } from "@/lib/user-attributes";
 import type { FactsBundleV2 } from "@/lib/types/generated";
@@ -28,7 +26,6 @@ import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Pill } from "@/components/ui/pill";
-import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { BarDay } from "@/components/charts/bar-day";
 import { Sparkline } from "@/components/charts/sparkline";
@@ -39,7 +36,6 @@ import {
   type StepsBar,
   type AcwrPoint,
 } from "@/components/charts/activity-charts";
-import { CoachTakeaway } from "@/components/coach/coach-takeaway";
 import { FadeRise } from "@/components/motion/fade-rise";
 import Link from "next/link";
 
@@ -48,16 +44,6 @@ const INSIGHTS_ROOT = process.env.INSIGHTS_ROOT ?? path.join(SYNC_ROOT, "insight
 
 /** Default daily-step target when the user hasn't configured one. */
 const DEFAULT_STEPS_GOAL = 8000;
-/** German keywords used to filter daily.drivers down to activity-relevant clauses. */
-const ACTIVITY_DRIVER_KEYWORDS = [
-  "schritt",
-  "step",
-  "bewegung",
-  "aktiv",
-  "workout",
-  "training",
-  "last",
-];
 
 export default async function ActivityDetail({ params }: { params: Promise<{ date: string }> }) {
   noStore();
@@ -81,28 +67,22 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
     facts14,
     workouts,
     workouts30d,
-    daily,
-    dailyStatus,
     attrs,
     acuteSeries,
     chronicSeries,
     acwrSnapshot,
     activityInsight,
-    morning,
   ] = await Promise.all([
     Promise.resolve(getActivityMinutes(w)),
     Promise.resolve(getDaySummary(w)),
     Promise.all(dates14.map(loadFacts)),
     Promise.resolve(getWorkouts({ sinceSec: w.since, untilSec: w.until })),
     Promise.resolve(getWorkouts({ sinceSec: distSince, untilSec: w.until, limit: 200 })),
-    loadDaily(date),
-    loadDailyStatus(date),
     Promise.resolve(safeReadAttrs()),
     Promise.resolve(getTrainingLoadAcute({ sinceSec: acwrSince, untilSec: w.until })),
     Promise.resolve(getTrainingLoadChronic({ sinceSec: acwrSince, untilSec: w.until })),
     Promise.resolve(getAcwrSnapshot()),
     loadActivityInsight(date),
-    loadMorningInsight(date),
   ]);
 
   const stepsGoal = attrs?.steps_goal_spd ?? DEFAULT_STEPS_GOAL;
@@ -130,14 +110,6 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
   const totalWorkouts30d = distribution.reduce((s, r) => s + r.count, 0);
   const totalMinutes30d = distribution.reduce((s, r) => s + r.totalMinutes, 0);
 
-  // Activity-coaching card now comes from the morning briefing's `levers`
-  // (Stage 5 was retired into the v3 morning cluster on sleep_complete).
-  const activityCard = (morning?.levers ?? []).find((c) => c.domain === "activity");
-  const activityDrivers = (daily?.drivers ?? []).filter((d) => {
-    const t = `${d.clause} ${d.metric_id}`.toLowerCase();
-    return ACTIVITY_DRIVER_KEYWORDS.some((kw) => t.includes(kw));
-  });
-
   const stripItems = dates14.map((d, i) => {
     const s = facts14[i]?.activity?.metrics?.steps ?? null;
     return {
@@ -157,13 +129,21 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
     : null;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <DomainChrome
         domainLabel="Bewegung"
         date={date}
         hrefBase="/activity"
         icon="Footprints"
       />
+
+      <div className="hidden md:flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="eyebrow shrink-0">Letzte 14 Tage</span>
+          <BandStrip items={stripItems} active={date} hrefBase="/activity/" size={22} />
+        </div>
+        <span className="text-caption text-muted shrink-0">Schritte vs Ziel</span>
+      </div>
 
       <FadeRise>
         <InsightSection insight={activityInsight} domainLabel="Bewegung" />
@@ -183,14 +163,6 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
           </CardBody>
         </Card>
       </FadeRise>
-
-      <Section eyebrow="KI" title="KI-Hinweise">
-        <KiHints
-          status={dailyStatus}
-          card={activityCard ?? null}
-          drivers={activityDrivers}
-        />
-      </Section>
 
       {latestSession && sessionHref && (
         <Section eyebrow="Heute" title="Letzte Session">
@@ -360,123 +332,13 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
           <TrendTile label="Sitzend"   series={sedentarySeries} unit="min" tone="activity" />
           <TrendTile label="Aktiv-Energie" series={calSeries} unit="kcal" tone="activity" />
         </div>
-        <Card variant="soft" className="mt-3">
+        {/* Mobile-only BandStrip; desktop strip lives at top of page. */}
+        <Card variant="soft" className="mt-3 md:hidden">
           <CardBody className="p-5 overflow-x-auto">
             <BandStrip items={stripItems} hrefBase="/activity/" active={date} />
           </CardBody>
         </Card>
       </Section>
-    </div>
-  );
-}
-
-// ─── KI block ──────────────────────────────────────────────────────────────
-
-type ActivityCard = {
-  lever: string;
-  domain: string;
-  confidence: "high" | "medium" | "low";
-  trajectory: string;
-  projection_90d: string;
-  tiny_next_step: {
-    anchor: string;
-    tiny: string;
-    horizon: "today" | "tonight" | "tomorrow" | "this_week";
-  };
-};
-
-type ActivityDriver = { clause: string; metric_id: string; direction: "up" | "down" | "flat" };
-
-function KiHints({
-  status,
-  card,
-  drivers,
-}: {
-  status: "ready" | "live" | "absent";
-  card: ActivityCard | null;
-  drivers: ActivityDriver[];
-}) {
-  if (status !== "ready") {
-    return (
-      <Card variant="soft">
-        <CardBody className="p-5 flex items-start gap-3">
-          <span className="grid place-items-center size-8 shrink-0 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
-            <Glyph name="Brain" size={14} className="text-subtle" />
-          </span>
-          <div className="flex flex-col gap-1 min-w-0">
-            <Eyebrow>KI-Hinweise</Eyebrow>
-            <p className="text-caption text-muted">
-              {status === "live"
-                ? "Tag läuft noch — die Auswertung wird heute Nacht nach Tagesende erstellt."
-                : "Für diesen Tag liegen keine KI-Hinweise vor."}
-            </p>
-          </div>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  if (!card && drivers.length === 0) {
-    return (
-      <Card variant="soft">
-        <CardBody className="p-5 text-caption text-muted">
-          Heute keine spezifischen Bewegungs-Hinweise — der Coach hat keinen aktivitätsspezifischen Hebel gewählt.
-        </CardBody>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {card && (
-        <Card variant="flat">
-          <CardBody className="p-4 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <Pill tone="activity" size="sm">{card.lever}</Pill>
-              <Pill
-                tone={card.confidence === "high" ? "up" : card.confidence === "low" ? "down" : "steady"}
-                size="sm"
-              >
-                {confidenceDe(card.confidence)}
-              </Pill>
-            </div>
-            <p className="text-[0.875rem] text-muted">{card.trajectory}</p>
-            {card.projection_90d && (
-              <p className="text-[0.875rem] text-subtle">{card.projection_90d}</p>
-            )}
-            <CoachTakeaway
-              anchor={card.tiny_next_step.anchor}
-              tiny={card.tiny_next_step.tiny}
-              horizon={card.tiny_next_step.horizon}
-              domain="activity"
-              className="mt-1"
-            />
-          </CardBody>
-        </Card>
-      )}
-
-      {drivers.length > 0 && (
-        <Card variant="flat">
-          <CardBody className="p-4 flex flex-col gap-2">
-            <Eyebrow>Treiber</Eyebrow>
-            <ul className="flex flex-wrap gap-1.5">
-              {drivers.map((d, i) => (
-                <li key={i}>
-                  <Pill
-                    tone={d.direction === "up" ? "up" : d.direction === "down" ? "down" : "steady"}
-                    size="sm"
-                  >
-                    <span className="num-mono mr-1">
-                      {d.direction === "up" ? "↑" : d.direction === "down" ? "↓" : "→"}
-                    </span>
-                    {d.clause}
-                  </Pill>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      )}
     </div>
   );
 }
@@ -664,10 +526,6 @@ function fmtDur(sec: number): string {
   const m = Math.floor((sec % 3600) / 60);
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}`;
   return `${m} min`;
-}
-
-function confidenceDe(c: string): string {
-  return c === "high" ? "hoch" : c === "low" ? "gering" : c === "medium" ? "mittel" : c;
 }
 
 async function loadFacts(date: string): Promise<FactsBundleV2 | null> {

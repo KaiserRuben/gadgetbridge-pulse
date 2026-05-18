@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
+import { DateSwipe } from "@/components/nav/date-swipe";
 import { addDays } from "@/lib/time";
 
 export function DomainChrome({
@@ -27,6 +28,12 @@ export function DomainChrome({
 
   return (
     <div className="flex items-end justify-between gap-3">
+      {/* Mounts a global swipe listener; no DOM output. Mobile-only effect
+         (no harm on desktop — touch events don't fire). */}
+      <DateSwipe
+        prevHref={`${hrefBase}/${prev}`}
+        nextHref={`${hrefBase}/${next}`}
+      />
       <div className="flex items-center gap-3">
         <span className="grid place-items-center size-10 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)]">
           <Glyph name={icon} size={18} />

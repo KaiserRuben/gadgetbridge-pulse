@@ -6,18 +6,18 @@ import { unstable_noStore as noStore } from "next/cache";
 import { addDays, windowForDate } from "@/lib/time";
 import { getStress } from "@/lib/queries/biometrics";
 import { STRESS_BUCKETS, stressBucket } from "@/lib/constants";
-import { loadDaily, loadDailyStatus } from "@/lib/insights";
 import { loadMorningInsight, type MorningLeverCard } from "@/lib/v3-loaders";
-import type { DailyInsightV2, FactsBundleV2 } from "@/lib/types/generated";
+import type { FactsBundleV2 } from "@/lib/types/generated";
 
 import { DomainChrome } from "@/components/domain/domain-chrome";
+import { InsightSection } from "@/components/domain/insight-section";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { Pill } from "@/components/ui/pill";
 import { Sparkline } from "@/components/charts/sparkline";
-import { CoachTakeaway } from "@/components/coach/coach-takeaway";
+import { BandStrip } from "@/components/charts/band-strip";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { leverToInsight } from "@/lib/dashboard/lever-to-insight";
 
 const SYNC_ROOT = process.env.PULSE_ROOT ?? "./pulse";
 const INSIGHTS_ROOT = process.env.INSIGHTS_ROOT ?? path.join(SYNC_ROOT, "insights");
@@ -29,18 +29,19 @@ export default async function StressDetail({ params }: { params: Promise<{ date:
 
   const dates14 = Array.from({ length: 14 }, (_, i) => addDays(date, -(13 - i)));
   const w = windowForDate(date);
-  const [facts14, samples, daily, dailyStatus, morning] = await Promise.all([
+  const [facts14, samples, morning] = await Promise.all([
     Promise.all(dates14.map(loadFacts)),
     Promise.resolve(safeStress(w)),
-    loadDaily(date),
-    loadDailyStatus(date),
     loadMorningInsight(date),
   ]);
   const today = facts14[13];
 
-  const stressCard = pickStressCoachingCard(morning?.levers ?? []);
-  const stressDrivers = pickStressDrivers(daily);
-  const stressSummary = isStressy(daily?.summary) ? daily?.summary : null;
+  // Stress page reuses the shared `<InsightSection>` — there is no
+  // `stress_insight` cluster runner-side, so we pick the best morning-
+  // briefing lever (domain==="stress") and shim it into the AnyInsight
+  // shape. Null lever → InsightSection's "Noch keine Analyse" stub.
+  const stressLever = pickStressLever(morning?.levers ?? []);
+  const stressInsight = leverToInsight(stressLever, { kpiId: "stress_lever" });
 
   // Hour-of-day stress profile for today.
   const hourBuckets = new Array<number>(24).fill(0);
@@ -67,14 +68,27 @@ export default async function StressDetail({ params }: { params: Promise<{ date:
   }
   const totalMin = Object.values(zoneMin).reduce((a, b) => a + b, 0);
 
+  const stripItems = dates14.map((d, i) => {
+    const mean = facts14[i]?.stress?.metrics?.stress_mean ?? null;
+    return { date: d, band: stressBand(mean), score: mean };
+  });
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <DomainChrome
         domainLabel="Stress"
         date={date}
         hrefBase="/stress"
         icon="Waves"
       />
+
+      <div className="hidden md:flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="eyebrow shrink-0">Letzte 14 Tage</span>
+          <BandStrip items={stripItems} active={date} hrefBase="/stress/" size={22} />
+        </div>
+        <span className="text-caption text-muted shrink-0">Mittel</span>
+      </div>
 
       <FadeRise>
         <Card glow="stress">
@@ -96,46 +110,9 @@ export default async function StressDetail({ params }: { params: Promise<{ date:
         </FadeRise>
       )}
 
-      {(stressCard || stressDrivers.length > 0 || stressSummary) ? (
-        <Section eyebrow="KI-Hinweise" title="Coach">
-          <Card variant="soft">
-            <CardBody className="p-5 flex flex-col gap-3">
-              {stressSummary && (
-                <p className="text-body text-muted max-w-[64ch]">{stressSummary}</p>
-              )}
-              {stressDrivers.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5">
-                  {stressDrivers.map((d, i) => (
-                    <li key={i}>
-                      <Pill tone={d.direction === "up" ? "down" : d.direction === "down" ? "up" : "steady"} size="sm">
-                        <span className="num-mono opacity-70 mr-1">{d.direction === "up" ? "↑" : d.direction === "down" ? "↓" : "→"}</span>
-                        {d.clause}
-                      </Pill>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {stressCard && (
-                <CoachTakeaway
-                  anchor={stressCard.tiny_next_step.anchor}
-                  tiny={stressCard.tiny_next_step.tiny}
-                  horizon={stressCard.tiny_next_step.horizon}
-                  domain="stress"
-                  className="mt-1"
-                />
-              )}
-            </CardBody>
-          </Card>
-        </Section>
-      ) : (
-        dailyStatus !== "ready" && (
-          <Card variant="soft">
-            <CardBody className="p-5 text-caption text-subtle">
-              Noch keine Coach-Hinweise — der Tages-Insight wird nach Mitternacht final berechnet.
-            </CardBody>
-          </Card>
-        )
-      )}
+      <FadeRise>
+        <InsightSection insight={stressInsight} domainLabel="Stress" />
+      </FadeRise>
 
       {(() => {
         const hasHourly = hourly.some((v) => v != null);
@@ -240,21 +217,15 @@ function labelDe(en: string): string {
        : en;
 }
 
-function pickStressCoachingCard(cards: MorningLeverCard[]): MorningLeverCard | null {
+function pickStressLever(cards: MorningLeverCard[]): MorningLeverCard | null {
   return cards.find((c) => c.domain === "stress") ?? null;
 }
 
-function pickStressDrivers(d: DailyInsightV2 | null): { clause: string; direction: "up" | "down" | "flat" }[] {
-  if (!d?.drivers) return [];
-  const re = /stress|hrv|atem|atmung|recovery|erholung|hochstress/i;
-  return d.drivers.filter((dr) => re.test(dr.clause)).map((dr) => ({ clause: dr.clause, direction: dr.direction }));
-}
-
-function isStressy(text: string | null | undefined): boolean {
-  if (!text) return false;
-  return /stress|atem|atmung|hrv|hochstress|recovery|erholung/i.test(text);
-}
-
+/**
+ * Shim a morning-briefing lever into the `<InsightSection>` insight
+ * contract. Mirror of the helper on heart/page.tsx — keep them in sync
+ * if the InsightSection contract changes.
+ */
 function safeStress(w: { since: number; until: number }) {
   try {
     return getStress(w);
@@ -271,4 +242,12 @@ async function loadFacts(date: string): Promise<FactsBundleV2 | null> {
   } catch {
     return null;
   }
+}
+
+function stressBand(mean: number | null): "above_usual" | "below_usual" | "steady" | null {
+  if (mean == null) return null;
+  // Stress: lower is better. <30 up · 30-50 steady · >50 down.
+  if (mean < 30) return "above_usual";
+  if (mean > 50) return "below_usual";
+  return "steady";
 }

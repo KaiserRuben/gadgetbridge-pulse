@@ -5,32 +5,23 @@ import { unstable_noStore as noStore } from "next/cache";
 
 import { addDays, windowForDate } from "@/lib/time";
 import { getActivityMinutes, getDaySummary } from "@/lib/queries/activity";
-import { loadDaily, loadDailyStatus, type DailyStatus } from "@/lib/insights";
 import { loadMorningInsight, type MorningLeverCard } from "@/lib/v3-loaders";
-import type { DailyInsightV2, FactsBundleV2 } from "@/lib/types/generated";
+import type { FactsBundleV2 } from "@/lib/types/generated";
 import { fmtInt } from "@/lib/format";
 import { HR_ZONES, hrZone } from "@/lib/constants";
 import { parseTimestampParam } from "@/lib/alarm-target";
 
 import { DomainChrome } from "@/components/domain/domain-chrome";
 import { ExplainSpikeButton } from "@/components/domain/explain-spike-button";
-import { CoachTakeaway } from "@/components/coach/coach-takeaway";
+import { InsightSection } from "@/components/domain/insight-section";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { Pill } from "@/components/ui/pill";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { Glyph } from "@/components/ui/glyph";
 import { Timeline, type TimelinePoint } from "@/components/charts/timeline";
 import { Sparkline } from "@/components/charts/sparkline";
+import { BandStrip } from "@/components/charts/band-strip";
 import { FadeRise } from "@/components/motion/fade-rise";
-
-// Coach cards moved to `morning_insight.levers`; the daily.coaching_cards
-// shape was effectively the same so the heart filter just reuses the new
-// MorningLeverCard type.
-type DailyDriver = DailyInsightV2["drivers"][number];
-
-const HEART_TERM_RE = /\b(rhr|hrv|puls|herz|bpm)\b/i;
+import { leverToInsight } from "@/lib/dashboard/lever-to-insight";
 
 const SYNC_ROOT = process.env.PULSE_ROOT ?? "./pulse";
 const INSIGHTS_ROOT = process.env.INSIGHTS_ROOT ?? path.join(SYNC_ROOT, "insights");
@@ -51,14 +42,20 @@ export default async function HeartDetail({
   const w = windowForDate(date);
   const dates14 = Array.from({ length: 14 }, (_, i) => addDays(date, -(13 - i)));
 
-  const [mins, summary, facts14, daily, dailyStatus, morning] = await Promise.all([
+  const [mins, summary, facts14, morning] = await Promise.all([
     Promise.resolve(getActivityMinutes(w)),
     Promise.resolve(getDaySummary(w)),
     Promise.all(dates14.map(loadFacts)),
-    loadDaily(date),
-    loadDailyStatus(date),
     loadMorningInsight(date),
   ]);
+
+  // Heart page reuses the shared `<InsightSection>` — there is no
+  // `heart_insight` cluster yet, so we hand-pick the best morning-briefing
+  // lever (heart / cardio) and shim it into the AnyInsight shape. When no
+  // cardio lever was emitted we pass null and InsightSection's "Noch keine
+  // Analyse" stub takes over.
+  const heartLever = pickBestHeartLever(morning?.levers ?? []);
+  const heartInsight = leverToInsight(heartLever, { kpiId: "heart_lever" });
 
   const hr: TimelinePoint[] = mins
     .filter((m) => m.hr > 30 && m.hr < 220)
@@ -80,14 +77,31 @@ export default async function HeartDetail({
     .filter((v): v is number => v != null);
   const spoSeries = facts14.map((f) => f?.cardio?.metrics?.spo2_mean_pct ?? null).filter((v): v is number => v != null);
 
+  const stripItems = dates14.map((d, i) => {
+    const rhr = facts14[i]?.cardio?.metrics?.rhr_day_bpm ?? null;
+    return {
+      date: d,
+      band: rhrBand(rhr),
+      score: rhr,
+    };
+  });
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <DomainChrome
         domainLabel="Herz"
         date={date}
         hrefBase="/heart"
         icon="HeartPulse"
       />
+
+      <div className="hidden md:flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="eyebrow shrink-0">Letzte 14 Tage</span>
+          <BandStrip items={stripItems} active={date} hrefBase="/heart/" size={22} />
+        </div>
+        <span className="text-caption text-muted shrink-0">Ruhepuls</span>
+      </div>
 
       <FadeRise>
         <Card glow="heart">
@@ -108,9 +122,9 @@ export default async function HeartDetail({
         </Card>
       </FadeRise>
 
-      <Section eyebrow="KI-Hinweise" title="Coach">
-        <HeartCoachInsights daily={daily} status={dailyStatus} levers={morning?.levers ?? []} />
-      </Section>
+      <FadeRise>
+        <InsightSection insight={heartInsight} domainLabel="Herz" />
+      </FadeRise>
 
       <Section eyebrow="24 h" title="Verlauf">
         <Card>
@@ -166,126 +180,20 @@ export default async function HeartDetail({
   );
 }
 
-function HeartCoachInsights({
-  daily,
-  status,
-  levers,
-}: {
-  daily: DailyInsightV2 | null;
-  status: DailyStatus;
-  levers: MorningLeverCard[];
-}) {
-  const heartCard = pickBestHeartCard(levers);
-  const heartDrivers = (daily?.drivers ?? []).filter((d): d is DailyDriver =>
-    typeof d?.clause === "string" && HEART_TERM_RE.test(d.clause),
-  );
-  const summary = daily?.summary && HEART_TERM_RE.test(daily.summary) ? daily.summary : null;
-  const isReady = status === "ready" && !daily?.abstain;
-  const hasContent = isReady && (summary || heartCard || heartDrivers.length > 0);
-
-  if (!hasContent) {
-    return (
-      <Card variant="soft">
-        <CardBody className="p-5 flex items-start gap-3">
-          <span className="grid place-items-center size-8 shrink-0 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
-            <Glyph name="Sparkles" size={14} className="text-[var(--color-heart)]" />
-          </span>
-          <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-[0.9375rem]">Noch keine Coach-Hinweise für Herz</span>
-            <span className="text-caption">
-              {status === "ready"
-                ? "Der heutige Coach hat keine herzbezogenen Hebel ausgewiesen."
-                : "Schau nach Mitternacht erneut vorbei — dann werden Tageshebel berechnet."}
-            </span>
-          </div>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {summary && (
-        <Card variant="soft">
-          <CardBody className="p-5 flex items-start gap-3">
-            <span
-              aria-hidden
-              className="mt-0.5 w-[3px] self-stretch rounded-full bg-[var(--color-heart)]"
-            />
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <Eyebrow>Zusammenfassung</Eyebrow>
-              <p className="text-[0.9375rem] leading-snug text-muted max-w-[64ch]">
-                {summary}
-              </p>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {heartCard && (
-        <Card>
-          <CardBody className="p-5 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <Pill tone="heart" size="sm">{heartCard.lever}</Pill>
-              <Pill
-                tone={heartCard.confidence === "high" ? "up" : heartCard.confidence === "low" ? "down" : "steady"}
-                size="sm"
-              >
-                {confidenceDe(heartCard.confidence)}
-              </Pill>
-            </div>
-            <p className="text-[0.875rem] text-muted">{heartCard.trajectory}</p>
-            <p className="text-[0.875rem] text-subtle">{heartCard.projection_90d}</p>
-            <CoachTakeaway
-              anchor={heartCard.tiny_next_step.anchor}
-              tiny={heartCard.tiny_next_step.tiny}
-              horizon={heartCard.tiny_next_step.horizon}
-              domain="heart"
-              className="mt-1"
-            />
-          </CardBody>
-        </Card>
-      )}
-
-      {heartDrivers.length > 0 && (
-        <Card variant="soft">
-          <CardBody className="p-5 flex flex-col gap-2.5">
-            <Eyebrow>Treiber · Herz</Eyebrow>
-            <ul className="flex flex-wrap gap-1.5">
-              {heartDrivers.map((d, i) => (
-                <li key={i}>
-                  <Pill
-                    tone={d.direction === "up" ? "up" : d.direction === "down" ? "down" : "steady"}
-                    size="sm"
-                  >
-                    <span className="num-mono">
-                      {d.direction === "up" ? "↑" : d.direction === "down" ? "↓" : "→"}
-                    </span>
-                    <span>{d.clause}</span>
-                  </Pill>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function pickBestHeartCard(cards: MorningLeverCard[]): MorningLeverCard | null {
+/**
+ * Rank morning-briefing levers and pick the strongest cardio one. Lever
+ * "domain" comes from runner-side classification — both "heart" and the
+ * legacy "cardio" label are accepted.
+ */
+function pickBestHeartLever(cards: MorningLeverCard[]): MorningLeverCard | null {
   if (cards.length === 0) return null;
-  const heartCards = cards.filter(
+  const cardio = cards.filter(
     (c) => c.domain === "heart" || c.domain === "cardio",
   );
-  if (heartCards.length === 0) return null;
+  if (cardio.length === 0) return null;
   const rank = (c: MorningLeverCard): number =>
     c.confidence === "high" ? 2 : c.confidence === "medium" ? 1 : 0;
-  return [...heartCards].sort((a, b) => rank(b) - rank(a))[0];
-}
-
-function confidenceDe(c: "high" | "medium" | "low"): string {
-  return c === "high" ? "hoch" : c === "low" ? "gering" : "mittel";
+  return [...cardio].sort((a, b) => rank(b) - rank(a))[0];
 }
 
 function TrendTile({
@@ -340,4 +248,11 @@ async function loadFacts(date: string): Promise<FactsBundleV2 | null> {
   } catch {
     return null;
   }
+}
+
+function rhrBand(rhr: number | null): "above_usual" | "below_usual" | "steady" | null {
+  if (rhr == null) return null;
+  if (rhr < 60) return "above_usual";
+  if (rhr > 70) return "below_usual";
+  return "steady";
 }

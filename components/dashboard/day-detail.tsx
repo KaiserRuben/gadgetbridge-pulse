@@ -6,13 +6,12 @@ import { getSleepStages, getSleepStats, getStageDurations } from "@/lib/queries/
 import { fmtInt } from "@/lib/format";
 import { loadDailyV3Bundle, loadSleepPackage, loadActivityPackage } from "@/lib/v3-loaders";
 import { applyHeroFallback } from "@/lib/dashboard/hero-fallback";
+import { DateSwipe } from "@/components/nav/date-swipe";
 import { computeMode } from "@/lib/dashboard/mode";
 
-import { HeroV3 } from "@/components/domain/hero-v3";
+import { SynthesisCell } from "@/components/domain/synthesis-cell";
 import { DayNavigator } from "@/components/nav/day-navigator";
 import { CoachTakeaway } from "@/components/coach/coach-takeaway";
-import { TopActionCard } from "@/components/domain/top-action-card";
-import { ContradictionCard } from "@/components/domain/contradiction-card";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -83,8 +82,6 @@ export async function DayDetail({
   });
 
   const synthesis = bundle.daily;
-  const topAction = synthesis?.top_action_today ?? null;
-  const contradictions = synthesis?.contradictions ?? [];
 
   const hrSeries: TimelinePoint[] = mins
     .filter((m) => m.hr > 30 && m.hr < 220)
@@ -94,8 +91,15 @@ export async function DayDetail({
 
   const suggestions = collectSuggestions(bundle);
 
+  const prevDate = addDays(date, -1);
+  const nextDate = addDays(date, 1);
+
   return (
     <div className="flex flex-col gap-6 md:gap-8">
+      <DateSwipe
+        prevHref={`${hrefBaseForCalendar}${prevDate}`}
+        nextHref={`${hrefBaseForCalendar}${nextDate}`}
+      />
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -110,25 +114,19 @@ export async function DayDetail({
         </div>
       </div>
 
-      <FadeRise>
-        <HeroV3 bundle={bundle} date={date} mode={mode} />
-      </FadeRise>
+      {/* Phase 3d migration: SynthesisCell wraps Hero + TopAction +
+         Contradictions. Domain pointers are intentionally omitted on
+         this surface — the day-detail page renders its own per-domain
+         drill-down grid below (Schlaf/Herz/Bewegung/Coach), so domain
+         pointers would double up. */}
+      <SynthesisCell
+        periodKey={date}
+        fallbackPayload={synthesis ?? null}
+        variant="day-detail"
+        dayScore={bundle.day_score}
+        mode={mode}
+      />
 
-      {topAction && (
-        <FadeRise>
-          <TopActionCard action={topAction} />
-        </FadeRise>
-      )}
-
-      {contradictions.length > 0 && (
-        <Section eyebrow="Konflikte" title={`${contradictions.length} erkannt`}>
-          <div className="flex flex-col gap-3">
-            {contradictions.map((c, i) => (
-              <ContradictionCard key={i} contradiction={c} />
-            ))}
-          </div>
-        </Section>
-      )}
 
       <Stagger className="grid grid-cols-1 lg:grid-cols-2 gap-3" step={0.06}>
         <StaggerItem>

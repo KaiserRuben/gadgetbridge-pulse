@@ -3,6 +3,8 @@
 import { motion, type HTMLMotionProps } from "motion/react";
 import type { PropsWithChildren } from "react";
 
+import { useMotionPrefs } from "./_lib";
+
 type Props = PropsWithChildren<
   HTMLMotionProps<"div"> & {
     delay?: number;
@@ -13,18 +15,21 @@ type Props = PropsWithChildren<
 
 export function FadeRise({
   delay = 0,
-  distance = 6,
-  duration = 0.32,
+  distance,
+  duration,
   children,
   ...rest
 }: Props) {
+  const prefs = useMotionPrefs();
+  const y = distance ?? prefs.fadeRiseY;
+  const dur = duration ?? prefs.fadeRiseDur;
   return (
     <motion.div
-      initial={{ opacity: 0, y: distance }}
+      initial={{ opacity: 0, y }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        duration,
-        delay,
+        duration: dur,
+        delay: prefs.reduce ? 0 : delay,
         ease: [0.16, 1, 0.3, 1],
       }}
       {...rest}

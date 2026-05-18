@@ -14,7 +14,10 @@ export default async function AppShellLayout({ children }: PropsWithChildren) {
       <div className="flex flex-col flex-1 min-w-0">
         <Topbar alarmCount={alarmCount} />
         <PageTransition>
-          <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8 lg:py-10 pb-24 lg:pb-12 max-w-[1320px] w-full mx-auto">
+          <div
+            className="px-4 md:px-6 lg:px-8 py-6 md:py-8 lg:py-10 max-w-[1320px] w-full mx-auto lg:pb-12"
+            style={{ paddingBottom: "calc(6rem + env(safe-area-inset-bottom))" }}
+          >
             {children}
           </div>
         </PageTransition>

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const OLLAMA_LOCAL_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 const OLLAMA_REMOTE_URL = process.env.OLLAMA_REMOTE_URL?.trim();
 const CHART_MODEL = process.env.PULSE_CHART_MODEL ?? "ministral-3:3b";
-const LOCAL_TIMEOUT_MS = 25_000;
+const LOCAL_TIMEOUT_MS = 300_000;
 /**
  * The remote endpoint is best-effort — when the off-network host is
  * unreachable we want to fall through to the local Ollama within a tight

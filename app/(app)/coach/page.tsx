@@ -6,19 +6,13 @@ import { loadDaily, getLatestDailyDate } from "@/lib/insights";
 import { loadMorningInsight } from "@/lib/v3-loaders";
 import { addDays } from "@/lib/time";
 
-import { tConfidenceShort, tDomain } from "@/lib/i18n";
-
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph } from "@/components/ui/glyph";
-import { InProgressBadge } from "@/components/ui/in-progress-badge";
 import { ArrowNavList } from "@/components/nav/arrow-nav-list";
-import { CoachTakeaway } from "@/components/coach/coach-takeaway";
-import { ConfidenceBar } from "@/components/ui/confidence-bar";
-import { FadeRise } from "@/components/motion/fade-rise";
-import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { MorningInsightCell } from "@/components/domain/morning-insight-cell";
 
 export default async function CoachPage({
   searchParams,
@@ -32,10 +26,12 @@ export default async function CoachPage({
 
   if (!date) return <ColdStart />;
 
-  const [daily, morning] = await Promise.all([
-    loadDaily(date),
-    loadMorningInsight(date),
-  ]);
+  // Server-load the legacy morning_insight.json for the active date — used
+  // as DerivedCell `fallbackPayload` so first paint stays populated even
+  // before the JobCell row lands. The 14-day history list reads many days
+  // at once and stays server-rendered (out of scope for cluster wrapping).
+  const morningFallback = await loadMorningInsight(date);
+
   const last14 = await Promise.all(
     Array.from({ length: 14 }, (_, i) => addDays(date, -i)).map(async (d) => {
       const [dailyForDay, morningForDay] = await Promise.all([
@@ -46,97 +42,13 @@ export default async function CoachPage({
     }),
   );
 
-  // Coach cards now come from the morning briefing, which fires on
-  // sleep_complete (was: Stage 5 at day_end). `daily.coaching_cards` is no
-  // longer populated; the field stays in the schema only so historical
-  // daily.json files keep validating.
-  const cards = morning?.levers ?? [];
-  const morningMissing = !morning;
-  const hasContent = !morningMissing && !morning?.abstain && cards.length > 0;
-
   return (
     <div className="flex flex-col gap-8">
-      <FadeRise>
-        <Card glow="sleep">
-          <CardBody className="p-6 lg:p-8 flex flex-col gap-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Eyebrow>Coach · {fmtDay(date)}</Eyebrow>
-              {!morning && <InProgressBadge />}
-              {morning && (
-                <Pill tone="steady" size="sm">
-                  Konfidenz {Math.round((morning.confidence?.value ?? 0) * 100)}%
-                </Pill>
-              )}
-            </div>
-            <h1 className="text-hero">
-              {morning?.headline ??
-                (!morning
-                  ? "Coach-Karten landen mit der nächsten Schlaf-Synchronisation."
-                  : "Heute keine Hebel.")}
-            </h1>
-            {morning?.summary_long && (
-              <p className="text-body text-muted max-w-[64ch]">{morning.summary_long}</p>
-            )}
-            {!morning && (
-              <p className="text-body text-muted max-w-[64ch]">
-                Der Morgen-Coach feuert direkt nachdem das Wearable die Nacht abgeschlossen hat — Daten zu RMSSD, Schlafphasen und Trainings-Plan fließen dann zusammen.
-              </p>
-            )}
-            {morning?.confidence?.value != null && (
-              <ConfidenceBar value={morning.confidence.value} className="mt-2" />
-            )}
-          </CardBody>
-        </Card>
-      </FadeRise>
-
-      <Section eyebrow="Hebel" title={`${cards.length} aktive Karten`}>
-        {hasContent ? (
-          <Stagger className="grid grid-cols-1 lg:grid-cols-2 gap-3" step={0.06}>
-            {cards.map((c, i) => (
-              <StaggerItem key={i}>
-                <Card>
-                  <CardBody className="p-5 flex flex-col gap-3 h-full">
-                    <div className="flex items-center gap-2 justify-between">
-                      <div className="flex items-center gap-2">
-                        <Pill tone={c.domain as Parameters<typeof Pill>[0]["tone"]} size="sm">{c.lever}</Pill>
-                        <Pill tone="neutral" size="sm">{tDomain(c.domain)}</Pill>
-                      </div>
-                      <Pill tone={c.confidence === "high" ? "up" : c.confidence === "low" ? "down" : "steady"} size="sm">
-                        {tConfidenceShort(c.confidence)}
-                      </Pill>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Eyebrow>Trajektorie</Eyebrow>
-                      <p className="text-[0.9375rem] text-muted leading-snug">{c.trajectory}</p>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Eyebrow>Projektion 90 T</Eyebrow>
-                      <p className="text-[0.9375rem] text-subtle leading-snug">{c.projection_90d}</p>
-                    </div>
-                    <CoachTakeaway
-                      anchor={c.tiny_next_step.anchor}
-                      tiny={c.tiny_next_step.tiny}
-                      horizon={c.tiny_next_step.horizon}
-                      domain={c.domain as Parameters<typeof CoachTakeaway>[0]["domain"]}
-                      className="mt-auto"
-                    />
-                  </CardBody>
-                </Card>
-              </StaggerItem>
-            ))}
-          </Stagger>
-        ) : (
-          <Card variant="soft">
-            <CardBody className="p-5 text-caption">
-              {morningMissing
-                ? "Morgen-Coach folgt mit der nächsten Schlaf-Synchronisation."
-                : morning?.abstain
-                  ? (morning.abstain_reason ?? "Coach hat sich enthalten — Datenlage zu dünn.")
-                  : "Keine Hebel — Datenfenster zu schmal (≥7 Tage Trend nötig)."}
-            </CardBody>
-          </Card>
-        )}
-      </Section>
+      <MorningInsightCell
+        periodKey={date}
+        fallbackPayload={morningFallback}
+        variant="full"
+      />
 
       <Section eyebrow="Verlauf" title="Letzte 14 Tage">
         <Card variant="soft">
@@ -205,24 +117,12 @@ export default async function CoachPage({
 
 function ColdStart() {
   return (
-    <Card>
-      <CardBody className="p-8 flex flex-col gap-3">
-        <Eyebrow>Coach</Eyebrow>
-        <h1 className="text-hero">Noch keine Coaching-Daten</h1>
-        <p className="text-body text-muted max-w-[60ch]">
-          Sobald der Runner einen Tagesinsight schreibt, erscheint hier die Strategie.
-        </p>
-      </CardBody>
-    </Card>
+    <EmptyStateCard
+      cause="abstained"
+      cluster="morning_insight"
+      headline="Noch keine Coaching-Daten"
+    />
   );
-}
-
-function fmtDay(date: string) {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("de-DE", {
-    weekday: "long", day: "numeric", month: "long",
-    timeZone: "Europe/Berlin",
-  });
 }
 
 function fmtShort(date: string) {

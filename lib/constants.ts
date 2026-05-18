@@ -89,80 +89,82 @@ export type NavSection = {
 };
 
 /**
- * Mobile primary bottom-nav. Three named slots + the More trigger:
+ * Mobile primary bottom-nav. Five fast-access slots (Phase U4):
  *   Home (`/`)        — unified today + day-detail (via `?d=…`).
+ *   Schlaf (`/sleep`) — sleep domain page.
  *   Training (`/training`) — active plan-and-session surface.
  *   Coach (`/coach`)  — morning-briefing levers (fires on `sleep_complete`).
+ *   Ernährung (`/nutrition`) — nutrition log (tool-calling pipeline lands in Phase 3e).
  *
  * Day legacy (`/day` and `/day/<date>`) 301-redirects into `/?d=…`. The
- * older `/activities` slot moved into More — wearable activity is already
- * surfaced inline on Home, and Training is the *active* surface the user
- * taps daily.
+ * old "More" drawer trigger moved into the topbar (gear icon → /settings).
+ * Secondary domain surfaces stay reachable via the desktop sidebar or
+ * the topbar settings page. On viewports without a sidebar (mobile), the
+ * sheet still opens via the persistent ⋯ slot in the bottom nav.
  */
 export const NAV_PRIMARY_MOBILE: readonly NavItem[] = [
   { href: "/", label: "Home", icon: "Home", match: "^/(\\?|$)" },
   { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
   { href: "/training", label: "Training", icon: "Dumbbell", match: "^/training(/|$)" },
   { href: "/coach", label: "Coach", icon: "Brain", match: "^/coach(/|$)" },
+  { href: "/nutrition", label: "Ernährung", icon: "Utensils", match: "^/nutrition(/|$)" },
 ] as const;
 
-/** Mobile More-sheet items (sibling to NAV_PRIMARY_MOBILE). */
+/**
+ * Mobile More-sheet items (sibling to NAV_PRIMARY_MOBILE). Holds every
+ * surface that lost its bottom-nav slot to the U4 fast-access lineup —
+ * weekly overview, secondary domains, tools, and admin pages.
+ */
 export const NAV_SHEET_MOBILE: readonly NavItem[] = [
   { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
-  { href: "/activities", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
   { href: "/recovery", label: "Erholung", icon: "HeartPulse", match: "^/recovery(/|$)" },
   { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
   { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
   { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
   { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
-  { href: "/nutrition", label: "Ernährung", icon: "Utensils", match: "^/nutrition(/|$)" },
+  { href: "/activities", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
   { href: "/explore", label: "Explore", icon: "BarChart2", match: "^/explore(/|$)" },
   { href: "/alarms", label: "Alarme", icon: "Bell", match: "^/alarms(/|$)" },
   { href: "/log", label: "Log", icon: "PenLine", match: "^/log(/|$)" },
   { href: "/profile", label: "Profil", icon: "User", match: "^/profile(/|$)" },
+  { href: "/settings", label: "Einstellungen", icon: "Settings", match: "^/settings(/|$)" },
   { href: "/labs", label: "Labs", icon: "FlaskConical", match: "^/labs(/|$)" },
 ] as const;
 
 /**
- * Desktop sidebar. Sections render as eyebrow + grouped items, with a
- * bottom block for tools and admin.
+ * Desktop sidebar (UI/UX rework).
+ *
+ * Top block: five fast-access surfaces — Home, Coach, Schlaf, Training,
+ * Ernährung — same as bottom-nav for muscle memory.
+ *
+ * Single "Weitere" section holds the rest, flat, no sub-labels. Domain
+ * pages are reachable via home KPI tiles too, so the sidebar doesn't
+ * need to re-advertise them per-section. Settings + admin live in the
+ * topbar gear icon.
  */
 export const NAV_DESKTOP_SECTIONS: readonly NavSection[] = [
   {
     label: null,
     items: [
       { href: "/", label: "Home", icon: "Home", match: "^/$" },
-      { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
       { href: "/coach", label: "Coach", icon: "Brain", match: "^/coach(/|$)" },
-      { href: "/training", label: "Training", icon: "Dumbbell", match: "^/training(/|$)" },
-    ],
-  },
-  {
-    label: "Domänen",
-    items: [
       { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
-      { href: "/recovery", label: "Erholung", icon: "HeartPulse", match: "^/recovery(/|$)" },
-      { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
-      { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
-      { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
-      { href: "/activities", label: "Aktivitäten", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
-      { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
+      { href: "/training", label: "Training", icon: "Dumbbell", match: "^/training(/|$)" },
       { href: "/nutrition", label: "Ernährung", icon: "Utensils", match: "^/nutrition(/|$)" },
     ],
   },
   {
-    label: "Werkzeuge",
+    label: "Weitere",
     items: [
+      { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
+      { href: "/recovery", label: "Erholung", icon: "HeartPulse", match: "^/recovery(/|$)" },
+      { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
+      { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
+      { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
+      { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
+      { href: "/workouts", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
       { href: "/explore", label: "Explore", icon: "BarChart2", match: "^/explore(/|$)" },
-      { href: "/alarms", label: "Alarme", icon: "Bell", match: "^/alarms(/|$)" },
       { href: "/log", label: "Log", icon: "PenLine", match: "^/log(/|$)" },
-    ],
-  },
-  {
-    label: null,
-    items: [
-      { href: "/profile", label: "Profil", icon: "User", match: "^/profile(/|$)" },
-      { href: "/labs", label: "Labs", icon: "FlaskConical", match: "^/labs(/|$)" },
     ],
   },
 ] as const;

@@ -8,6 +8,7 @@ import { readJournal } from "@/lib/journal";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
@@ -64,11 +65,11 @@ export default async function LogIndex() {
       </FadeRise>
 
       <Section eyebrow="Verlauf" title={`${merged.length} Einträge`}>
-        <Card variant="soft">
-          <CardBody className="p-3">
-            {merged.length === 0 ? (
-              <div className="p-6 text-caption text-center">Noch keine Einträge.</div>
-            ) : (
+        {merged.length === 0 ? (
+          <EmptyStateCard cause="no_data" headline="Noch keine Einträge." />
+        ) : (
+          <Card variant="soft">
+            <CardBody className="p-3">
               <ul className="flex flex-col">
                 {merged.map((r, i) => (
                   <li key={i} className="flex items-start gap-3 px-3 py-3 hover:bg-[var(--color-surface-2)]/40 rounded-xl">
@@ -99,9 +100,9 @@ export default async function LogIndex() {
                   </li>
                 ))}
               </ul>
-            )}
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
+        )}
       </Section>
     </div>
   );

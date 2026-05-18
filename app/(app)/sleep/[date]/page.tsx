@@ -55,13 +55,21 @@ export default async function SleepDetail({ params }: { params: Promise<{ date: 
   const totalSleep = stageDurs[1] + stageDurs[2] + stageDurs[3];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <DomainChrome
         domainLabel="Schlaf"
         date={date}
         hrefBase="/sleep"
         icon="Moon"
       />
+
+      <div className="hidden md:flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="eyebrow shrink-0">Letzte 14 Tage</span>
+          <BandStrip items={stripItems} active={date} hrefBase="/sleep/" size={22} />
+        </div>
+        <span className="text-caption text-muted shrink-0">Effizienz</span>
+      </div>
 
       <FadeRise>
         <InsightSection insight={sleepInsight} domainLabel="Schlaf" />
@@ -119,7 +127,9 @@ export default async function SleepDetail({ params }: { params: Promise<{ date: 
           <TrendTile label="REM"          series={remSeries} unit="min" duration tone="sleep" />
           <TrendTile label="Tief"         series={deepSeries} unit="min" duration tone="sleep" />
         </div>
-        <Card variant="soft" className="mt-3">
+        {/* Compact band strip lives at the top of the page now; bottom
+           variant kept for mobile where the top strip is hidden. */}
+        <Card variant="soft" className="mt-3 md:hidden">
           <CardBody className="p-5 overflow-x-auto">
             <BandStrip items={stripItems} hrefBase="/sleep/" active={date} />
           </CardBody>

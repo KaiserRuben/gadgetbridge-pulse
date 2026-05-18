@@ -14,10 +14,13 @@ export function BottomNav({ alarmCount = 0 }: { alarmCount?: number }) {
   const [open, setOpen] = useState(false);
   const items = [...NAV_PRIMARY_MOBILE];
 
+  // U4: 5 fast-access slots + a More drawer for the rest.
+  // 6-col grid keeps the 11px slot size on 390px viewports (60px each
+  // with 12px px-1.5 padding round-trip).
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 pb-[env(safe-area-inset-bottom)]">
       <div className="mx-3 mb-3 rounded-2xl bg-[var(--color-surface)]/85 backdrop-blur-xl border border-[var(--color-border)] shadow-[0_18px_36px_-18px_hsl(0_0%_0%/0.6)]">
-        <ul className="grid grid-cols-5 items-center px-1.5 py-1.5">
+        <ul className="grid grid-cols-6 items-center px-1 py-1.5">
           {items.map((item) => {
             const active = new RegExp(item.match).test(pathname);
             return (

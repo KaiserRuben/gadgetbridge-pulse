@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
@@ -245,11 +246,11 @@ export default async function TrainingPage() {
 
       {/* ── Recent sessions list ──────────────────────────────────── */}
       <Section eyebrow="Verlauf" title="Letzte Sessions">
-        <Card variant="soft">
-          <CardBody className="p-3">
-            {recentSessions.length === 0 ? (
-              <div className="p-4 text-caption text-muted">Noch keine Sessions geloggt.</div>
-            ) : (
+        {recentSessions.length === 0 ? (
+          <EmptyStateCard cause="no_data" headline="Noch keine Trainings-Sessions" />
+        ) : (
+          <Card variant="soft">
+            <CardBody className="p-3">
               <ul className="flex flex-col divide-y divide-[var(--color-border)]">
                 {recentSessions.map((s) => (
                   <li key={s.id}>
@@ -284,9 +285,9 @@ export default async function TrainingPage() {
                   </li>
                 ))}
               </ul>
-            )}
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
+        )}
       </Section>
     </div>
   );

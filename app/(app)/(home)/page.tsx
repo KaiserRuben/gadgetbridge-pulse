@@ -20,12 +20,10 @@ import {
 import { computeMode, MODE_ACCENT } from "@/lib/dashboard/mode";
 import { applyHeroFallback } from "@/lib/dashboard/hero-fallback";
 
-import { HeroV3 } from "@/components/domain/hero-v3";
-import { MorningBriefingCard } from "@/components/domain/morning-briefing";
+import { MorningInsightCell } from "@/components/domain/morning-insight-cell";
+import { SynthesisCell } from "@/components/domain/synthesis-cell";
+import { PendingInsightsBar, type PendingInsight } from "@/components/domain/pending-insights-bar";
 import { DayDetail } from "@/components/dashboard/day-detail";
-import { TopActionCard } from "@/components/domain/top-action-card";
-import { DomainPointerCard } from "@/components/domain/domain-pointer-card";
-import { ContradictionCard } from "@/components/domain/contradiction-card";
 import { PostWorkoutCard } from "@/components/domain/post-workout-card";
 import { MetricTile } from "@/components/domain/metric-tile";
 import { BandStrip } from "@/components/charts/band-strip";
@@ -33,6 +31,7 @@ import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { EmptyStateCard } from "@/components/ui/empty-state";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { DayNavigator } from "@/components/nav/day-navigator";
@@ -56,10 +55,11 @@ function relativeLabel(dateIso: string, todayIso: string): string {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ d?: string; t?: string }>;
+  searchParams?: Promise<{ d?: string; t?: string; debug?: string }>;
 }) {
   noStore();
   const sp = (await searchParams) ?? {};
+  const debugMode = sp.debug === "1";
 
   // The unified day-detail surface lives at `/?d=YYYY-MM-DD`. When a valid
   // date is in the query, render that view via the shared `DayDetail`
@@ -183,8 +183,7 @@ export default async function HomePage({
 
   const synthesis = heroBundle.daily;
   const topAction = synthesis?.top_action_today ?? null;
-  const contradictions = synthesis?.contradictions ?? [];
-  const pointers = synthesis?.domain_pointers ?? [];
+  // contradictions + domain_pointers rendered by SynthesisCell, not inline.
 
   // 14-day strip (newest right).
   const stripItems = calendarDates
@@ -267,114 +266,48 @@ export default async function HomePage({
   // "16. Mai" against today.
   const heroDateLabelDe = formatDateDe(heroDate);
 
+  // ── Determine which insights are pending (no payload yet). Used to ─
+  //    collapse three empty CTA cards into a single PendingInsightsBar.
+  const synthesisHasData = synthesis != null;
+  const morningCanShow =
+    !!morningInsight &&
+    !morningInsight.incomplete &&
+    !!morningBriefingDate &&
+    (morningBriefingDate === todayLatest ||
+      (lastWakeMs != null && Date.now() - lastWakeMs < 18 * 3600 * 1000));
+
+  const pendingInsights: PendingInsight[] = [];
+  if (!synthesisHasData) {
+    pendingInsights.push({
+      cluster: "synthesis_v3",
+      key: heroDate,
+      label: "Tages-Analyse",
+    });
+  }
+  if (!morningCanShow && lastWakeMs != null && Date.now() - lastWakeMs < 18 * 3600 * 1000) {
+    pendingInsights.push({
+      cluster: "morning_insight",
+      key: todayLatest,
+      label: "Morgen-Briefing",
+    });
+  }
+
   return (
-    <div className="flex flex-col gap-5 md:gap-6">
-      {/* ── 0. Catch-up banner when hero is a past date ──────────────────
-         Promoted from a footnote to a date-anchored banner. The hero card
-         below carries confident "Samstag … heute" prose written at finalisation
-         time — without a strong banner the reader cannot tell that the prose
-         is one day old. */}
-      {showCatchupBanner && (
-        <Card variant="soft" className="border-[var(--color-border)]">
-          <CardBody className="p-4 flex flex-wrap items-center gap-3">
-            <Pill tone="low" size="sm">Letzter abgeschlossener Tag</Pill>
-            <span className="text-body-sm">
-              <span className="font-medium">Analyse für {heroDateLabelDe}.</span>{" "}
-              <span className="text-muted">
-                Heute ({formatDateDe(todayLatest)}) läuft noch — finale Bewertung nach Tagesende.
-              </span>
-            </span>
-            <Link
-              href={`/?d=${todayLatest}`}
-              className="ml-auto text-caption hover:text-[var(--color-text)]"
-            >
-              Heutige Rohdaten →
-            </Link>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* ── 1. Hero ─────────────────────────────────────────────────────── */}
-      <FadeRise>
-        <div className="md:hidden">
-          <HeroV3 bundle={heroBundle} date={heroDate} mode={mode} compact />
-        </div>
-        <div className="hidden md:block">
-          <HeroV3 bundle={heroBundle} date={heroDate} mode={mode} />
-        </div>
-      </FadeRise>
-
-      {/* ── 1.5. Morning briefing — generated on sleep_complete ─────────
-         Only show if the briefing was generated for today's wake-date OR
-         less than 18h has elapsed since wake (covers same-day reading even
-         past midnight). Outside that window the briefing's "tomorrow"-relative
-         time anchors no longer make sense. */}
-      {morningInsight &&
-        !morningInsight.incomplete &&
-        morningBriefingDate &&
-        (morningBriefingDate === todayLatest ||
-          (lastWakeMs != null && Date.now() - lastWakeMs < 18 * 3600 * 1000)) && (
-          <FadeRise>
-            <MorningBriefingCard
-              insight={morningInsight}
-              date={morningBriefingDate}
-              viewingAtMs={renderAtMs}
-            />
-          </FadeRise>
-        )}
-
-      {/* ── 2. Post-workout fresh card ─────────────────────────────────── */}
-      {showPostWorkout && lastWorkout && (
-        <FadeRise>
-          <PostWorkoutCard
-            workout={lastWorkout}
-            activityInsight={heroBundle.activity}
-            date={activityDate ?? heroDate}
-          />
-        </FadeRise>
-      )}
-
-      {/* ── 3. Top action — only when hero is today AND no morning briefing
-         is competing for the "do this now" slot. The morning briefing's
-         day_shape is a superset of top_action_today with better time anchoring. */}
-      {showTopAction && topAction && (
-        <FadeRise>
-          <TopActionCard action={topAction} />
-        </FadeRise>
-      )}
-
-      {/* ── 4. Contradictions ──────────────────────────────────────────── */}
-      {contradictions.length > 0 && (
-        <Section eyebrow="Konflikte" title={`${contradictions.length} erkannt`}>
-          <div className="flex flex-col gap-3">
-            {contradictions.map((c, i) => (
-              <ContradictionCard key={i} contradiction={c} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* ── 5. 14-day strip + day navigator ───────────────────────────── */}
+    <div className="flex flex-col gap-4 md:gap-5">
+      {/* ── 1. Day navigator + 14-day strip (above the fold) ──────────── */}
       <DayNavigator date={todayLatest} daysByDate={daysByDate} hideOnDesktop />
-      <FadeRise>
-        <Card className="hidden md:block">
-          <CardBody className="p-4 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="eyebrow">Letzte 14 Tage</span>
-              <span className="text-caption text-muted">Tag-Score</span>
-            </div>
-            <BandStrip items={stripItems} active={todayLatest} hrefBase="/?d=" size={32} />
-          </CardBody>
-        </Card>
-      </FadeRise>
+      <div className="hidden md:flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="eyebrow">Letzte 14 Tage</span>
+          <BandStrip items={stripItems} active={todayLatest} hrefBase="/?d=" size={22} />
+        </div>
+        <span className="text-caption text-muted">Tag-Score</span>
+      </div>
 
-      {/* ── 6. Metric tiles (each sourced from latest-available) ────────
-         Section eyebrow used to read "Aktuell · 16. Mai" — misleading,
-         because each tile picks its own latest-available date independently.
-         Per-tile eyebrows carry the authoritative date. */}
+      {/* ── 2. KPI grid lifted to top — the actual data ──────────────── */}
       <Section
-        eyebrow="Kennzahlen"
-        title="Aktuell"
+        eyebrow="Heute"
+        title={heroDateLabelDe}
         trailing={
           <Link
             href={`/?d=${heroDate}`}
@@ -493,20 +426,87 @@ export default async function HomePage({
         })()}
       </Section>
 
-      {/* ── 7. Recent workouts ─────────────────────────────────────────── */}
-      {recentWorkouts.length > 0 && (
-        <Section
-          eyebrow={`Aktivitäten · ${activityDate ? relativeLabel(activityDate, todayLatest) : ""}`}
-          title={`${recentWorkouts.length} an diesem Tag · ${workouts7d} in 7 Tagen`}
-          trailing={
-            <Link
-              href={`/activity/${activityDate ?? heroDate}`}
-              className="text-caption hover:text-[var(--color-text)]"
-            >
-              Alle →
-            </Link>
-          }
-        >
+      {/* ── 3. Catch-up banner: hero is from past day (compact). */}
+      {showCatchupBanner && (
+        <EmptyStateCard
+          cause="computing"
+          cluster="synthesis_v3"
+          compact
+          headline={`Analyse für ${heroDateLabelDe} läuft`}
+          reason={`heute (${formatDateDe(todayLatest)}) noch offen`}
+          cta={{ label: "Rohdaten", href: `/?d=${todayLatest}` }}
+        />
+      )}
+
+      {/* ── 4. Synthesis cell — only render when payload exists. ───────
+         Empty state moves to the PendingInsightsBar below to keep the
+         page rhythm tight on cold-start days. */}
+      {synthesisHasData && (
+        <SynthesisCell
+          periodKey={heroDate}
+          fallbackPayload={synthesis ?? null}
+          variant="home"
+          dayScore={heroBundle.day_score}
+          mode={mode}
+          responsive
+          topActionSuppressed={!showTopAction}
+        />
+      )}
+
+      {/* ── 5. Morning briefing — only when within wake window AND has data. */}
+      {morningCanShow && morningBriefingDate && (
+        <FadeRise>
+          <MorningInsightCell
+            periodKey={morningBriefingDate}
+            fallbackPayload={morningInsight ?? null}
+            variant="compact"
+            viewingAtMs={renderAtMs}
+          />
+        </FadeRise>
+      )}
+
+      {/* ── 6. Pending insights — collapsed strip instead of 3 empty cards. */}
+      {pendingInsights.length > 0 && <PendingInsightsBar items={pendingInsights} />}
+
+      {/* ── 7. Post-workout fresh card ─────────────────────────────────── */}
+      {showPostWorkout && lastWorkout && (
+        <FadeRise>
+          <PostWorkoutCard
+            workout={lastWorkout}
+            activityInsight={heroBundle.activity}
+            date={activityDate ?? heroDate}
+          />
+        </FadeRise>
+      )}
+
+      {/* ── 8. Recent workouts ──────────────────────────────────────────
+         U3: section is always rendered. On a sedentary day the body is a
+         single `<EmptyStateCard cause="no_data">` so the page rhythm
+         doesn't collapse — previously the section disappeared entirely
+         when no workouts existed, which made the home page feel emptier
+         than it actually is. */}
+      <Section
+        eyebrow={`Aktivitäten · ${activityDate ? relativeLabel(activityDate, todayLatest) : "—"}`}
+        title={
+          recentWorkouts.length > 0
+            ? `${recentWorkouts.length} an diesem Tag · ${workouts7d} in 7 Tagen`
+            : `Keine Aktivitäten · ${workouts7d} in 7 Tagen`
+        }
+        trailing={
+          <Link
+            href={`/activity/${activityDate ?? heroDate}`}
+            className="text-caption hover:text-[var(--color-text)]"
+          >
+            Alle →
+          </Link>
+        }
+      >
+        {recentWorkouts.length === 0 ? (
+          <EmptyStateCard
+            cause="no_data"
+            headline="Heute keine Aktivitäten aufgezeichnet."
+          />
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
             {recentWorkouts.map((w, i) => (
               <Card key={i} hoverable>
@@ -540,66 +540,24 @@ export default async function HomePage({
               </Card>
             ))}
           </div>
-        </Section>
+        )}
+      </Section>
+
+      {/* ── 8. Domain pointers — rendered by SynthesisCell above. */}
+
+      {debugMode && (
+        <details className="text-caption text-muted" open>
+          <summary className="cursor-pointer">Mode debug (?debug=1)</summary>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <Pill tone="low" size="sm">{mode}</Pill>
+            <span>accent: {MODE_ACCENT[mode]}</span>
+            <span>· hero: {heroDate}</span>
+            <span>· latest: {todayLatest}</span>
+            <span>· sleep: {sleepDate ?? "—"}</span>
+            <span>· activity: {activityDate ?? "—"}</span>
+          </div>
+        </details>
       )}
-
-      {/* ── 8. Domain pointers ─────────────────────────────────────────── */}
-      {pointers.length === 3 && (() => {
-        const allIncomplete = pointers.every((p) => p.callout === "Daten unvollständig");
-        return (
-          <Section
-            eyebrow="Domänen"
-            title="Drill-down"
-            trailing={
-              <Link href={`/?d=${heroDate}`} className="text-caption hover:text-[var(--color-text)]">
-                Tagesansicht →
-              </Link>
-            }
-          >
-            {allIncomplete ? (
-              <Card variant="soft">
-                <CardBody className="p-5 flex flex-col gap-2">
-                  <Pill tone="low" size="sm">Daten unvollständig</Pill>
-                  <p className="text-body-sm text-muted">
-                    Domain-Drill-downs werden nach Tagesende final berechnet. Detail-Seiten zeigen aktuelle Rohdaten.
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {pointers.map((p) => (
-                      <Link
-                        key={p.domain}
-                        href={`/${
-                          p.domain === "activity" ? "activity" : p.domain === "recovery" ? "recovery" : "sleep"
-                        }/${heroDate}`}
-                        className="text-caption hover:text-[var(--color-text)] underline decoration-dotted"
-                      >
-                        {p.label_de} →
-                      </Link>
-                    ))}
-                  </div>
-                </CardBody>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {pointers.map((p, i) => (
-                  <DomainPointerCard key={i} pointer={p} date={heroDate} />
-                ))}
-              </div>
-            )}
-          </Section>
-        );
-      })()}
-
-      <details className="text-caption text-muted">
-        <summary className="cursor-pointer">Mode debug</summary>
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <Pill tone="low" size="sm">{mode}</Pill>
-          <span>accent: {MODE_ACCENT[mode]}</span>
-          <span>· hero: {heroDate}</span>
-          <span>· latest: {todayLatest}</span>
-          <span>· sleep: {sleepDate ?? "—"}</span>
-          <span>· activity: {activityDate ?? "—"}</span>
-        </div>
-      </details>
     </div>
   );
 }
