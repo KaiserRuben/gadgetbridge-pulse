@@ -43,7 +43,7 @@ Regeln:
 
 const OPTIONS = {
   temperature: 0.1,
-  num_predict: 4096,
+  // num_predict inherits config.ollamaOptions (32k shared cap).
   num_ctx: 8192,
 };
 
@@ -77,7 +77,7 @@ export async function enrichFoodViaLLM(input: EnrichInput): Promise<EnrichLLMRes
       { role: "user" as const, content: `${SYSTEM_PROMPT}\n\n${userContent}` },
     ],
     format: schema,
-    options: OPTIONS,
+    options: { ...config.ollamaOptions, ...OPTIONS },
   };
   const start = Date.now();
   const url = `${config.ollamaUrl.replace(/\/+$/, "")}/api/chat`;
@@ -87,7 +87,7 @@ export async function enrichFoodViaLLM(input: EnrichInput): Promise<EnrichLLMRes
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(config.llmTimeoutMs),
     });
   } catch (err) {
     throw new Error(`enrichFoodViaLLM: fetch failed: ${err instanceof Error ? err.message : err}`);

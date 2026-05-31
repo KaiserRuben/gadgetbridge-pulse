@@ -111,8 +111,6 @@ export async function namePattern(
     format: PATTERN_SCHEMA,
     options: {
       temperature: 0.2,
-      num_ctx: 16384,
-      num_predict: 256,
       seed,
     },
     baseUrl: opts.ollamaUrl,

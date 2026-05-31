@@ -20,6 +20,14 @@ export interface ValidationOptions {
   groundingNoiseFilter?: (n: number) => boolean;
   /** Override which output fields are scanned for numbers. */
   proseFieldsToScan?: string[];
+  /**
+   * Additional text whose numbers are treated as cited-allowed (in addition
+   * to the package). Pass the system prompt + manifest here so threshold
+   * literals in the rules (`sedentary_minutes > 600`, `value ≥ 70 → band`)
+   * don't trigger grounding failures when the model legitimately echoes
+   * the threshold in its reasoning.
+   */
+  promptText?: string;
 }
 
 export interface ValidationResult {
@@ -97,6 +105,7 @@ export function validateInsight(
       ? checkGrounding(parsed, pkg, {
           fields: opts.proseFieldsToScan ?? DEFAULT_PROSE_FIELDS,
           isNoise: opts.groundingNoiseFilter ?? defaultNoiseFilter,
+          extraText: opts.promptText,
         })
       : [];
 
@@ -167,11 +176,14 @@ export function extractJson(text: string): string {
 interface GroundingOpts {
   fields: string[];
   isNoise: (n: number) => boolean;
+  /** System prompt / manifest text — numbers here are allowed (threshold literals). */
+  extraText?: string;
 }
 
 function checkGrounding(parsed: unknown, pkg: unknown, opts: GroundingOpts): string[] {
   const numbersInPkg = new Set<string>();
   collectNumbers(pkg, numbersInPkg);
+  if (opts.extraText) collectNumbers(opts.extraText, numbersInPkg);
 
   // Add pairwise differences (signed AND absolute) and sums of package numbers —
   // common derivations the model computes (e.g. midpoint shift = 413 - 293 = ±120,
@@ -271,6 +283,42 @@ function collectNumbers(value: unknown, out: Set<string>): void {
           out.add(canonical(Math.round(n)));
         }
       }
+    }
+    // ISO dates in package strings — also accept their German equivalents
+    // (DD.MM, DD.MM.YYYY, DD.MM.YY). The model frequently writes "18.05" in
+    // German prose when the package only carries "2026-05-18"; recognising
+    // the equivalent forms prevents grounding loops on a known good cite.
+    const isoMatches = value.match(/\b(\d{4})-(\d{2})-(\d{2})\b/g) ?? [];
+    for (const iso of isoMatches) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      if (!m) continue;
+      const [, yyyy, mm, dd] = m;
+      const dN = Number(dd);
+      const mN = Number(mm);
+      const yN = Number(yyyy);
+      const yy = yyyy.slice(2);
+      // German equivalents the LLM emits in prose. dN/mN handle the
+      // "18.5" zero-stripped style; dd/mm cover "18.05".
+      const forms = [
+        `${dN}.${mN}`,
+        `${dN}.${mm}`,
+        `${dd}.${mN}`,
+        `${dd}.${mm}`,
+        `${dN}.${mN}.${yyyy}`,
+        `${dN}.${mN}.${yy}`,
+        `${dd}.${mm}.${yyyy}`,
+        `${dd}.${mm}.${yy}`,
+      ];
+      for (const f of forms) {
+        const num = Number(f);
+        if (Number.isFinite(num)) {
+          out.add(canonical(num));
+          out.add(canonical(Math.round(num)));
+        }
+      }
+      out.add(canonical(dN));
+      out.add(canonical(mN));
+      out.add(canonical(yN));
     }
     return;
   }

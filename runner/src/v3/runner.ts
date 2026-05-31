@@ -90,15 +90,10 @@ export async function runUseCase(opts: UseCaseRunOptions): Promise<UseCaseRunRes
         format: formatPayload,
         options: {
           temperature,
+          // v3 packagers can be wide; bump num_ctx above the runner default
+          // (16384) for synthesis + multi-cluster prompts. num_predict
+          // inherits config.ollamaOptions (32k) — far above prior 16k.
           num_ctx: 32768,
-          /**
-           * qwen3.6 thinking can eat 2-4k tokens before any content. 4000
-           * empirically yields `done_reason: length` with content="" — see
-           * 2026-05-15 v3:sleep 2026-05-13 run (out=4000, JSON.parse: empty).
-           * 16000 gives generous headroom for long thinking + full insight
-           * (~2-3k content tokens) without re-hitting the cap.
-           */
-          num_predict: 16000,
           ...(opts.ollamaOptions ?? {}),
         },
       });
@@ -115,7 +110,14 @@ export async function runUseCase(opts: UseCaseRunOptions): Promise<UseCaseRunRes
       continue;
     }
 
-    const result = validateInsight(raw, opts.pkg, { schema: opts.schema, ajv });
+    const result = validateInsight(raw, opts.pkg, {
+      schema: opts.schema,
+      ajv,
+      // Pass the system+manifest text so threshold literals (`sedentary_minutes
+      // > 600`, KPI band cutoffs `≥ 70` / `≤ 40`, etc.) baked into the rules
+      // count as legitimately-cited numbers when the model echoes them.
+      promptText: systemBase,
+    });
     lastResult = result;
 
     if (result.schemaWarnings.length > 0) {
@@ -142,6 +144,29 @@ export async function runUseCase(opts: UseCaseRunOptions): Promise<UseCaseRunRes
       : `grounding-invalid (${result.groundingErrors.length} errs)`;
     errors.push(`attempt ${attempt + 1}: ${summary}`);
     log.warn(`v3:${tag}`, `attempt ${attempt + 1}/${maxAttempts} ${summary} — ${result.schemaErrors[0] ?? result.groundingErrors[0] ?? "?"}`);
+
+    // Grounding-only failure: same prompt rarely cites different numbers next
+    // attempt — observed 3× full LLM cycles on 2026-05-20 spending ~3h to
+    // reproduce the same "number 600 not in package" error. Accept the
+    // schema-valid output now and let the caller mark the insight `partial`.
+    // Schema failures still retry (structural issue may genuinely improve).
+    if (result.schemaValid && result.groundingErrors.length > 0) {
+      log.info(
+        `v3:${tag}`,
+        `accepting grounding-failed output as partial (skip ${maxAttempts - attempt - 1} retries)`,
+      );
+      return {
+        ok: false,
+        attempts: attempt + 1,
+        insight: result.parsed,
+        validation: result,
+        totalMs,
+        promptTokens,
+        evalTokens,
+        endpoint,
+        errors,
+      };
+    }
   }
 
   return {

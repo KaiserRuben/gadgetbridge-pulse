@@ -337,7 +337,7 @@ export async function runStageWeekly(
         user: userPrompt,
         tag: "stageW_weekly",
         format: weeklySchema,
-        options: { temperature, num_ctx: 16384, num_predict: 6000 },
+        options: { temperature },
       });
     } catch (err) {
       lastError = `HTTP error: ${err instanceof Error ? err.message : String(err)}`;

@@ -104,9 +104,32 @@ export const config = {
    * For local dev or systemd installs without an explicit override, fall
    * back to `~/.pulse/ingest-outbox.db` so the runner doesn't need root.
    */
+  // Outbox is mac-runner-local state, NEVER in $PULSE_ROOT (Syncthing folder).
+  // Docker compose binds `/runner-state` to a named volume; local dev /
+  // systemd installs fall back to `~/.pulse/`.
   ingestOutboxPath:
     process.env.PULSE_INGEST_OUTBOX_PATH ??
-    (existsSync("/data") ? "/data/ingest-outbox.db" : path.join(homedir(), ".pulse", "ingest-outbox.db")),
+    (existsSync("/runner-state")
+      ? "/runner-state/ingest-outbox.db"
+      : path.join(homedir(), ".pulse", "ingest-outbox.db")),
+
+  /**
+   * Hard wall-clock cap applied to every Ollama HTTP call. Generation is
+   * bounded by num_predict + schema grammar; this timeout is the outer
+   * safety net for stuck connections / hung backends. Previously 45 min,
+   * which let a single wedged call eat ~7 h across 3-attempt retry loops
+   * (see 2026-05-21 v3:activity logs). 15 min is generous for qwen3.6 +
+   * 32k num_predict (~38 min at 14 tok/s) but the heartbeat line at 30 s
+   * cadence catches truly hung calls long before the cap fires.
+   *
+   * Override per-deployment via `OLLAMA_TIMEOUT_MS` env (e.g. 900000 for
+   * 15 min, 600000 for 10 min on a faster GPU).
+   */
+  llmTimeoutMs: (() => {
+    const env = process.env.OLLAMA_TIMEOUT_MS?.trim();
+    const parsed = env ? Number(env) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 900_000;
+  })(),
 
   /** Generation options shared across all prompts. */
   ollamaOptions: {
@@ -114,21 +137,17 @@ export const config = {
     /**
      * 16384 leaves headroom for coach (which embeds 6 domain insight bodies).
      * The cardio + activity prompts also approached the old 8192 ceiling.
+     * Per-call overrides exist for VRAM-tuned cases (vision, surprise).
      */
     num_ctx: 16384,
     /**
-     * Hard cap. qwen3.6 sometimes ignores the schema close-brace and keeps
-     * generating a second copy. 6000 tokens gives all current and planned
-     * schemas headroom:
-     *   snapshot/sleep v2  ≈ 3300 tokens
-     *   snapshot/coach     ≈ 3800 tokens (consumes 7 prior insights)
-     *   week/<domain>      ≈ 4200 tokens (adds comparison + trend prose)
-     *   month/<domain>     ≈ 4800 tokens (adds calendar variability blocks)
-     *   year/<domain>      ≈ 5500 tokens (adds personal-records refs)
-     * Worst-case generation time at ~14 tok/s ≈ 7 min; still acceptable for
-     * a background batch run, while preventing unbounded 80k-token loops.
+     * Shared hard cap across every LLM call site. Schema grammar + EOS
+     * normally stop far below this; the cap exists to bound qwen3.6's
+     * occasional schema-ignoring runaway (double-emit) and to give the
+     * widest v3 synthesis + vision prompts headroom without per-call
+     * tuning. 32000 tokens ≈ 38 min at 14 tok/s — still inside llmTimeoutMs.
      */
-    num_predict: 6000,
+    num_predict: 32000,
     top_p: 0.9,
   },
 } as const;

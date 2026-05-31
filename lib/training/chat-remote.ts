@@ -10,10 +10,23 @@ import type { MessageRow } from "./chat";
  * remote endpoint is unreachable the caller queues; no degradation, per Q4.
  *
  * Endpoint = `OLLAMA_REMOTE_URL`. Default model = `OLLAMA_REMOTE_MODEL` or
- * `qwen3.6:latest`. Times out after `OLLAMA_REMOTE_TIMEOUT_MS` (default 300s).
+ * `qwen3.6:latest`. Times out after `OLLAMA_REMOTE_TIMEOUT_MS` (default
+ * 45 min — matches `runner/src/config.ts#llmTimeoutMs`). Response is
+ * schema-constrained to `{ reply: string }` so the chat surface participates
+ * in the same structured-output discipline as the pipeline.
  */
 
-const DEFAULT_TIMEOUT_MS = 300_000;
+// Matches `runner/src/config.ts#llmTimeoutMs`. Keep in sync.
+const DEFAULT_TIMEOUT_MS = 2_700_000;
+
+const CHAT_REPLY_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: { type: "string", minLength: 1, maxLength: 4000 },
+  },
+  required: ["reply"],
+  additionalProperties: false,
+} as const;
 
 export interface RemoteResult {
   ok: boolean;
@@ -36,7 +49,10 @@ REGELN
 - Verwende NUR Daten aus dem CONTEXT-Block. Erfinde keine Zahlen, keine Sessions, keine Übungen.
 - Wenn der User nach einer Plan-Änderung fragt: schlage sie als Text vor. NIEMALS direkt umsetzen. Eine Plan-Änderung passiert nur über den Vorschlags-Workflow im Dashboard.
 - Wenn du Schmerz-Notizen zitierst (free_text aus pain_flags): wort-für-wort in »…«, niemals paraphrasieren.
-- Keine medizinischen Aussagen, keine Diagnosen.`;
+- Keine medizinischen Aussagen, keine Diagnosen.
+
+AUSGABEFORMAT
+Antworte ausschließlich als JSON-Objekt mit genau einem Feld "reply", das den deutschen Antworttext enthält. Beispiel: {"reply": "Heute steht Push 1 an, du hast in der letzten Woche ..."}`;
 
 function getEndpoint(): string | null {
   // Pi already runs against the Mac's Ollama via `OLLAMA_URL` over Tailscale.
@@ -103,13 +119,13 @@ export async function callRemoteChat(input: RemoteCallInput): Promise<RemoteResu
         model,
         stream: false,
         messages,
-        // `think: false` skips the chain-of-thought block. Safe here because
-        // chat is conversational, not schema-constrained (the pipeline keeps
-        // thinking ON because the format-grammar engine requires it — see
-        // runner/src/ollama.ts). Setting num_predict=1024 caps a runaway
-        // reply at ~2-4kB so a 90s timeout reliably covers the response.
-        think: false,
-        options: { temperature: 0.3, num_predict: 1024 },
+        // Schema-constrained reply. Per `runner/src/ollama.ts` notes,
+        // qwen3.6 needs thinking ON for the `format` grammar to bind, so
+        // `think: false` is NOT set here. The shared num_predict cap (32k,
+        // matches runner config) plus EOS keeps generation bounded; the
+        // outer AbortController is the wall-clock backstop.
+        format: CHAT_REPLY_SCHEMA,
+        options: { temperature: 0.3, num_predict: 32000 },
       }),
       signal: controller.signal,
     });
@@ -124,9 +140,25 @@ export async function callRemoteChat(input: RemoteCallInput): Promise<RemoteResu
       };
     }
     const json = (await res.json()) as { message?: { content?: string } };
-    const content = json.message?.content?.trim() ?? "";
-    if (!content) {
+    const raw = json.message?.content?.trim() ?? "";
+    if (!raw) {
       return { ok: false, content: null, endpoint, model, error: "empty content" };
+    }
+    let parsed: { reply?: unknown };
+    try {
+      parsed = JSON.parse(raw) as { reply?: unknown };
+    } catch (err) {
+      return {
+        ok: false,
+        content: null,
+        endpoint,
+        model,
+        error: `JSON parse failed: ${err instanceof Error ? err.message : err}`,
+      };
+    }
+    const content = typeof parsed.reply === "string" ? parsed.reply.trim() : "";
+    if (!content) {
+      return { ok: false, content: null, endpoint, model, error: "empty reply" };
     }
     return { ok: true, content, endpoint, model, error: null };
   } catch (err) {

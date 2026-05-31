@@ -105,8 +105,6 @@ export async function runStage4(
         format: dailySchema,
         options: {
           temperature,
-          num_ctx: 16384,
-          num_predict: 6000,
         },
       });
     } catch (err) {

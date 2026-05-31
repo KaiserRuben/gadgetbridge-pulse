@@ -37,6 +37,12 @@ const vlmDispatcher = new Agent({
   keepAliveMaxTimeout: 600_000,
 });
 
+// Wall-clock upper bound for one /api/chat call. Single-GPU Ollama serialises
+// against concurrent v3 day_end calls (qwen3.6 36B, no NUM_PARALLEL), so the
+// classify request can sit in the queue 15+ min before the model even starts.
+// Bumped from 15 → 45 min and made env-tunable so heavy days don't false-abort.
+const CLASSIFY_TIMEOUT_MS = Number(process.env.PULSE_CLASSIFY_TIMEOUT_MS) || 2_700_000;
+
 const SCHEMA_PATH = fileURLToPath(
   new URL("../../schemas/nutrition/classify-output.schema.json", import.meta.url),
 );
@@ -99,6 +105,29 @@ Spezifität:
 Verpackung (Folie, Box, Teller, Becher, Servierbesteck, Strohhalm) ist
 NIE eine Komponente.
 
+MEAL_KIND (wichtig — Default "snack" ist NIE die ehrliche Antwort)
+Wähle einen der 5 Werte basierend primär auf Uhrzeit (Europe/Berlin),
+sekundär auf Komposition. Die Uhrzeit der Mahlzeit steht im
+Nutzer-Header ("Zeit: …").
+
+- "breakfast": 04:00–10:30, oder Komposition klar Frühstück
+  (Müsli, Porridge, Brot+Aufstrich, Eier+Brot, Joghurt+Obst).
+- "lunch": 11:00–14:30, vollständige Hauptmahlzeit (Stärke +
+  Protein + Gemüse), warm oder kalt.
+- "dinner": 17:30–22:00, vollständige Hauptmahlzeit.
+- "drink": *nur* Getränke, keine festen Komponenten (Kaffee,
+  Smoothie, Bier, Wasser, Tee, Saft). Auch wenn das Getränk Kalorien
+  hat (Latte, Proteinshake) — solange nichts Festes dabei ist.
+- "snack": kleine Zwischenmahlzeit (1-2 Komponenten, keine
+  Hauptmahlzeit-Struktur) ODER Mahlzeit außerhalb der typischen
+  Zeitfenster (z.B. 15:30 Kuchen, 22:30 Chips, 02:00 Pizzaresten).
+
+Konflikt-Regel: Wenn Uhrzeit und Komposition widersprechen
+(z.B. 09:00 + Currywurst+Pommes), gewinnt die Komposition. Wenn die
+Uhrzeit am Rand eines Fensters liegt (10:45, 14:35), gewinnt die
+Komposition. "snack" ist nur der Default, wenn weder Uhrzeit noch
+Komposition auf eine Hauptmahlzeit zeigen.
+
 MEHRERE BILDER (wenn vorhanden)
 - Bild #1 ist normalerweise das Essen (die "meal" Aufnahme).
 - Weitere Bilder können sein:
@@ -156,19 +185,14 @@ nicht das generische "Salat", das mehrdeutig ist.`;
 
 interface CallOptions {
   temperature: number;
-  num_predict: number;
+  num_predict?: number;
   num_ctx: number;
 }
 
-// num_predict raised from 3000 → 20000. The earlier validation doc (§2.2)
-// concluded the cap was unavoidable because a 6000-token retry on the
-// bowl1 + hint case "did not return within 5 minutes per attempt + retry".
-// That was impatience: live retest in this session on the Dürüm photo with
-// num_predict=20000 produced a clean 6-component decomposition in 68s and
-// done_reason=stop. Raise the headroom; qwen3.6 only consumes what it needs.
+// num_predict inherits the shared cap from `config.ollamaOptions` (32000) —
+// merged in `postOllamaChat`. num_ctx stays VRAM-tuned for vision (8192).
 const OPTIONS: CallOptions = {
   temperature: 0.1,
-  num_predict: 20000,
   num_ctx: 8192,
 };
 
@@ -246,12 +270,13 @@ export async function classifyMeal(input: ClassifyInput): Promise<ClassifyResult
   const model = config.model;
   const schema = await loadSchema();
   const hint = input.job.user_text?.trim() || "";
+  const mealAtLocal = formatBerlinTime(input.job.user_meal_at);
   const useTools = toolsEnabled();
 
   const start = Date.now();
   const first = useTools
-    ? await callClassifyWithTools(model, schema, input.images, hint, OPTIONS)
-    : await callClassify(model, schema, input.images, hint, OPTIONS);
+    ? await callClassifyWithTools(model, schema, input.images, hint, mealAtLocal, OPTIONS)
+    : await callClassify(model, schema, input.images, hint, mealAtLocal, OPTIONS);
   if (first.ok) {
     return {
       output: first.output,
@@ -268,7 +293,7 @@ export async function classifyMeal(input: ClassifyInput): Promise<ClassifyResult
   // best-effort quality lift; if it failed once, we'd rather get a valid
   // classify back than spend another long minute in the loop. Falling back
   // to the plain prompt-only call is the safest second pass.
-  const retry = await callClassify(model, schema, input.images, "", RETRY_OPTIONS);
+  const retry = await callClassify(model, schema, input.images, "", mealAtLocal, RETRY_OPTIONS);
   if (!retry.ok) {
     throw new Error(
       `classifyMeal: both passes failed (${first.reason} / ${retry.reason})`,
@@ -342,7 +367,10 @@ async function postOllamaChat(opts: PostOpts): Promise<PostOk | PostFail> {
     model: opts.model,
     stream: false,
     messages: opts.messages,
-    options: opts.options,
+    // Merge shared generation defaults (num_predict + top_p + temperature
+    // fallback) so the global cap applies even though this site bypasses
+    // `callOllama`. Per-call `opts.options` still wins for overrides.
+    options: { ...config.ollamaOptions, ...opts.options },
   };
   if (opts.format !== undefined) body.format = opts.format;
   if (opts.tools !== undefined && opts.tools.length > 0) body.tools = opts.tools;
@@ -355,7 +383,7 @@ async function postOllamaChat(opts: PostOpts): Promise<PostOk | PostFail> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       dispatcher: vlmDispatcher,
-      signal: AbortSignal.timeout(900_000),
+      signal: AbortSignal.timeout(CLASSIFY_TIMEOUT_MS),
     });
   } catch (err) {
     return { ok: false, reason: `fetch: ${err instanceof Error ? err.message : err}` };
@@ -374,13 +402,15 @@ async function postOllamaChat(opts: PostOpts): Promise<PostOk | PostFail> {
 function buildInitialUserMessage(
   images: ClassifyImage[],
   hint: string,
+  mealAtLocal: string,
   systemPrompt: string,
 ): OllamaChatMessage {
   const imageNote = describeImages(images);
+  const header = `Zeit: ${mealAtLocal}.`;
   const userContent =
     hint.length > 0
-      ? `${imageNote} Nutzer-Hinweis: "${hint.replace(/"/g, '\\"')}"`
-      : imageNote;
+      ? `${header} ${imageNote} Nutzer-Hinweis: "${hint.replace(/"/g, '\\"')}"`
+      : `${header} ${imageNote}`;
   const msg: OllamaChatMessage = {
     role: "user",
     content: `${systemPrompt}\n\n${userContent}`,
@@ -389,18 +419,36 @@ function buildInitialUserMessage(
   return msg;
 }
 
+/**
+ * Format a UTC ISO timestamp as a short Berlin-local hint for the prompt,
+ * e.g. "Mo 19:05" (weekday + 24h time). Intl.DateTimeFormat handles DST.
+ */
+function formatBerlinTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "unbekannt";
+  const fmt = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return fmt.format(d).replace(",", "");
+}
+
 async function callClassify(
   model: string,
   schema: unknown,
   images: ClassifyImage[],
   hint: string,
+  mealAtLocal: string,
   options: CallOptions,
 ): Promise<CallOk | CallFail> {
   // Strict JSON-Schema (pydantic-equivalent grammar) is always sent as
   // `format`. Vision + schema works on this stack; the lenient `format:"json"`
   // fallback we used briefly produced outputs missing required scalars
   // (meal_kind) and was the wrong call.
-  const initial = buildInitialUserMessage(images, hint, SYSTEM_PROMPT);
+  const initial = buildInitialUserMessage(images, hint, mealAtLocal, SYSTEM_PROMPT);
   const post = await postOllamaChat({
     model,
     messages: [initial],
@@ -469,10 +517,11 @@ async function callClassifyWithTools(
   schema: unknown,
   images: ClassifyImage[],
   hint: string,
+  mealAtLocal: string,
   options: CallOptions,
 ): Promise<CallOk | CallFail> {
   const promptWithAppendix = SYSTEM_PROMPT + TOOL_PROMPT_APPENDIX;
-  const initial = buildInitialUserMessage(images, hint, promptWithAppendix);
+  const initial = buildInitialUserMessage(images, hint, mealAtLocal, promptWithAppendix);
   const messages: OllamaChatMessage[] = [initial];
 
   let lastReason = "tool loop never produced content";

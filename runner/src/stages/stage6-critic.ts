@@ -113,7 +113,7 @@ export async function runCritic(daily: DailyInsightV2): Promise<CriticResult> {
       user: userMsg,
       tag: "stage6_critic",
       format: CRITIC_SCHEMA,
-      options: { temperature: 0.2, num_ctx: 8192, num_predict: 1200 },
+      options: { temperature: 0.2, num_ctx: 8192 },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

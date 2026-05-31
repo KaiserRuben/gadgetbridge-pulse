@@ -1,9 +1,9 @@
 /**
  * Stage 3 — Evidence picker.
  *
- * Calls the LLM (free-form JSON, NO `format` schema) to pick 3–5 observation
- * IDs that should be narrated in the daily prose. Falls back to a
- * deterministic tier+confidence-ordered top-3 when:
+ * Calls the LLM with a strict JSON schema (`EVIDENCE_PICKER_SCHEMA`) to pick
+ * 3–5 observation IDs that should be narrated in the daily prose. Falls back
+ * to a deterministic tier+confidence-ordered top-3 when:
  *   - Ollama is unreachable
  *   - the model returns un-parseable JSON
  *   - the parsed JSON has the wrong shape
@@ -39,6 +39,21 @@ export interface PickedEvidence {
 
 const MAX_PICKED = 5;
 const FALLBACK_LIMIT = 3;
+
+const EVIDENCE_PICKER_SCHEMA = {
+  type: "object",
+  properties: {
+    selected_ids: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 0,
+      maxItems: MAX_PICKED,
+    },
+    rationale: { type: "string", maxLength: 200 },
+  },
+  required: ["selected_ids", "rationale"],
+  additionalProperties: false,
+} as const;
 
 function deterministicFallback(observations: Observation[]): string[] {
   const eligible = observations.filter(
@@ -93,10 +108,9 @@ export async function runStage3(observations: Observation[]): Promise<PickedEvid
       system: EVIDENCE_PICKER_SYSTEM,
       user: buildEvidencePickerUser(observations),
       tag: "stage3_evidence",
-      format: undefined,
+      format: EVIDENCE_PICKER_SCHEMA,
       options: {
         temperature: 0.1,
-        num_predict: 500,
       },
     });
 

@@ -178,7 +178,6 @@ export async function explainAnomaly(
     options: {
       temperature: 0.3,
       num_ctx: 8192,
-      num_predict: 1024,
       seed,
     },
     baseUrl: opts.ollamaUrl,

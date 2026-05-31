@@ -344,7 +344,6 @@ export async function frameSurpriseInsight(
     options: {
       temperature: 0.15,
       num_ctx: 4096,
-      num_predict: 256,
       seed,
     },
     baseUrl: opts.ollamaUrl,

@@ -25,17 +25,25 @@ import { pulseDb } from "../../pulse-db.ts";
 const memCache = new Map<string, string>();
 
 const TRANSLATE_MODEL = process.env.PULSE_TRANSLATE_MODEL ?? "ministral-3:3b";
-const TIMEOUT_MS = 300_000;
 
-const PROMPT = `Translate this German food name to a 1–4 word English search query for USDA FoodData Central. Return only the query, no quotes, no punctuation.
+const PROMPT = `Translate this German food name to a 1–4 word English search query for USDA FoodData Central. Emit ONLY the JSON object {"query": "..."}.
 
 Examples:
-- "Kichererbsen gekocht" → chickpeas cooked
-- "Vollkornbrot" → whole grain bread
-- "Hähnchenbrust gegrillt" → grilled chicken breast
-- "Joghurt natur" → plain yogurt
+- "Kichererbsen gekocht" → {"query": "chickpeas cooked"}
+- "Vollkornbrot" → {"query": "whole grain bread"}
+- "Hähnchenbrust gegrillt" → {"query": "grilled chicken breast"}
+- "Joghurt natur" → {"query": "plain yogurt"}
 
 Input:`;
+
+const TRANSLATE_SCHEMA = {
+  type: "object",
+  properties: {
+    query: { type: "string", minLength: 1, maxLength: 60 },
+  },
+  required: ["query"],
+  additionalProperties: false,
+} as const;
 
 interface OllamaChatResponse {
   message?: { content?: string };
@@ -81,7 +89,8 @@ export async function translateFoodKey(
     model: TRANSLATE_MODEL,
     stream: false,
     messages: [{ role: "user" as const, content: userContent }],
-    options: { temperature: 0.1, num_predict: 32, num_ctx: 2048 },
+    format: TRANSLATE_SCHEMA,
+    options: { ...config.ollamaOptions, temperature: 0.1, num_ctx: 2048 },
   };
   const url = `${config.ollamaUrl.replace(/\/+$/, "")}/api/chat`;
 
@@ -90,7 +99,7 @@ export async function translateFoodKey(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(config.llmTimeoutMs),
     });
     if (!res.ok) {
       log.warn("nutrition", `translateFoodKey ${food_key}: HTTP ${res.status}`);
@@ -105,8 +114,15 @@ export async function translateFoodKey(
       );
       return label_de;
     }
-    // Strip stray quotes / trailing punctuation. Cap at 60 chars — defensive.
-    const cleaned = raw
+    let parsed: { query?: unknown };
+    try {
+      parsed = JSON.parse(raw) as { query?: unknown };
+    } catch {
+      log.warn("nutrition", `translateFoodKey ${food_key}: JSON parse failed`);
+      return label_de;
+    }
+    const queryRaw = typeof parsed.query === "string" ? parsed.query : "";
+    const cleaned = queryRaw
       .replace(/^["'`]+|["'`]+$/g, "")
       .replace(/[.!?,;:]+$/g, "")
       .split("\n")[0]

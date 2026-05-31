@@ -3,7 +3,13 @@ import { randomUUID } from "node:crypto";
 import { Agent, fetch as undiciFetch } from "undici";
 import { config } from "./config.ts";
 import { getRedis } from "./jobs/redis.ts";
-import { log } from "./logger.ts";
+import { log, withContext, currentContext } from "./logger.ts";
+import {
+  finishRun,
+  heartbeat as runHeartbeat,
+  mintRunId,
+  startRun,
+} from "./state/run-tracker.ts";
 
 /**
  * Long-inference dispatcher. Default Node fetch (undici) caps body timeout at
@@ -202,47 +208,76 @@ async function postWithFallback(params: OllamaCallParams): Promise<OllamaResult>
   const remoteTimeoutMs = params.remoteTimeoutMs ?? REMOTE_PROBE_TIMEOUT_MS;
   const tag = params.tag ?? "llm";
   const promptChars = (params.system?.length ?? 0) + (params.user?.length ?? 0);
-  log.info("llm", `→ ${tag} model=${params.model} prompt_chars=${promptChars}`);
-  const tStart = Date.now();
 
-  if (remoteUrl) {
+  // One PULSE_RUN row per Ollama call, child of the currently-active run
+  // (e.g. v3:sleep) when present. The runId is woven into log lines via
+  // withContext so heartbeat + done lines are co-greppable.
+  const parent = currentContext();
+  const runId = mintRunId("ollama", tag, 1);
+  startRun({
+    cluster: "ollama",
+    key: tag,
+    scope: "instant",
+    runId,
+    parentRunId: parent?.runId,
+    meta: { model: params.model, prompt_chars: promptChars },
+  });
+
+  return withContext({ runId }, async () => {
+    log.info("llm", `→ ${tag} model=${params.model} prompt_chars=${promptChars}`);
+    const tStart = Date.now();
+
+    if (remoteUrl) {
+      try {
+        const remoteResult = await postOllama({
+          url: remoteUrl,
+          params,
+          timeoutMs: remoteTimeoutMs,
+        });
+        const reasonTag = remoteResult.doneReason && remoteResult.doneReason !== "stop"
+          ? ` done=${remoteResult.doneReason}`
+          : "";
+        log.info(
+          "llm",
+          `← ${tag} ok ${remoteResult.totalMs}ms in=${remoteResult.promptTokens} out=${remoteResult.evalTokens}${reasonTag} endpoint=remote`,
+        );
+        finishRun(runId, {
+          status: "ok",
+          prompt_chars: remoteResult.promptTokens,
+          eval_tokens: remoteResult.evalTokens,
+          meta: { endpoint: "remote", done_reason: remoteResult.doneReason },
+        });
+        return { ...remoteResult, endpoint: "remote", endpointUrl: remoteUrl };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.warn("llm", `remote ${remoteUrl} unavailable (${msg.slice(0, 160)}); fallback local`);
+      }
+    }
+
     try {
-      const remoteResult = await postOllama({
-        url: remoteUrl,
-        params,
-        timeoutMs: remoteTimeoutMs,
-      });
-      const reasonTag = remoteResult.doneReason && remoteResult.doneReason !== "stop"
-        ? ` done=${remoteResult.doneReason}`
+      const localResult = await postOllama({ url: localUrl, params, timeoutMs: config.llmTimeoutMs });
+      const reasonTag = localResult.doneReason && localResult.doneReason !== "stop"
+        ? ` done=${localResult.doneReason}`
         : "";
       log.info(
         "llm",
-        `← ${tag} ok ${remoteResult.totalMs}ms in=${remoteResult.promptTokens} out=${remoteResult.evalTokens}${reasonTag} endpoint=remote`,
+        `← ${tag} ok ${localResult.totalMs}ms in=${localResult.promptTokens} out=${localResult.evalTokens}${reasonTag} endpoint=local`,
       );
-      return { ...remoteResult, endpoint: "remote", endpointUrl: remoteUrl };
+      finishRun(runId, {
+        status: "ok",
+        prompt_chars: localResult.promptTokens,
+        eval_tokens: localResult.evalTokens,
+        meta: { endpoint: "local", done_reason: localResult.doneReason },
+      });
+      return { ...localResult, endpoint: "local", endpointUrl: localUrl };
     } catch (err) {
-      // Surface the failure reason once for diagnostics, then fall through.
+      const dt = Date.now() - tStart;
       const msg = err instanceof Error ? err.message : String(err);
-      log.warn("llm", `remote ${remoteUrl} unavailable (${msg.slice(0, 160)}); fallback local`);
+      log.error("llm", `← ${tag} fail ${dt}ms — ${msg.slice(0, 200)}`);
+      finishRun(runId, { status: "fail", error: msg.slice(0, 200) });
+      throw err;
     }
-  }
-
-  try {
-    const localResult = await postOllama({ url: localUrl, params, timeoutMs: null });
-    const reasonTag = localResult.doneReason && localResult.doneReason !== "stop"
-      ? ` done=${localResult.doneReason}`
-      : "";
-    log.info(
-      "llm",
-      `← ${tag} ok ${localResult.totalMs}ms in=${localResult.promptTokens} out=${localResult.evalTokens}${reasonTag} endpoint=local`,
-    );
-    return { ...localResult, endpoint: "local", endpointUrl: localUrl };
-  } catch (err) {
-    const dt = Date.now() - tStart;
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("llm", `← ${tag} fail ${dt}ms — ${msg.slice(0, 200)}`);
-    throw err;
-  }
+  }) as Promise<OllamaResult>;
 }
 
 interface PostArgs {
@@ -251,6 +286,13 @@ interface PostArgs {
   /** AbortController-driven timeout; null disables. */
   timeoutMs: number | null;
 }
+
+/**
+ * Heartbeat cadence for in-flight Ollama POSTs. Every `HEARTBEAT_MS` we emit
+ * one info-level log line AND tick the active run row (if any). Catches
+ * wedged generations within ~30 s instead of `llmTimeoutMs` later.
+ */
+const HEARTBEAT_MS = 30_000;
 
 async function postOllama(args: PostArgs): Promise<Omit<OllamaResult, "endpoint" | "endpointUrl">> {
   const { url, params, timeoutMs } = args;
@@ -275,12 +317,26 @@ async function postOllama(args: PostArgs): Promise<Omit<OllamaResult, "endpoint"
   };
 
   const fullUrl = `${url}/api/chat`;
+  const tag = params.tag ?? "llm";
+  const promptChars = (params.system?.length ?? 0) + (params.user?.length ?? 0);
   const t0 = Date.now();
   const controller = timeoutMs != null ? new AbortController() : null;
   const timer =
     controller && timeoutMs != null
       ? setTimeout(() => controller.abort(), timeoutMs)
       : null;
+
+  // Heartbeat: while the POST is in-flight, emit a "still running" line and
+  // push a tracker heartbeat every HEARTBEAT_MS. Cleared in `finally`.
+  const heartbeatTimer = setInterval(() => {
+    const elapsedSec = Math.round((Date.now() - t0) / 1000);
+    log.info("llm", `heartbeat ${tag} elapsed=${elapsedSec}s`);
+    const ctx = currentContext();
+    if (ctx?.runId) {
+      runHeartbeat(ctx.runId, { prompt_chars: promptChars });
+    }
+  }, HEARTBEAT_MS);
+
   try {
     const res = await undiciFetch(fullUrl, {
       method: "POST",
@@ -312,6 +368,7 @@ async function postOllama(args: PostArgs): Promise<Omit<OllamaResult, "endpoint"
       doneReason: json.done_reason,
     };
   } finally {
+    clearInterval(heartbeatTimer);
     if (timer) clearTimeout(timer);
   }
 }

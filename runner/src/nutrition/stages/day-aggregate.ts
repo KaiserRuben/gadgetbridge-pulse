@@ -99,7 +99,7 @@ engen Bildern (Hauptmahlzeit + Dessert + Getränk) ein einziges Event
 
 const OPTIONS = {
   temperature: 0.1,
-  num_predict: 1500,
+  // num_predict inherits config.ollamaOptions (32k shared cap).
   // num_ctx drives KV-cache allocation. Multi-image vision burns ~1k
   // tokens per 512 px photo; prompt + schema is < 600 tokens; output is
   // < 800. 4096 is comfortable headroom and keeps the activation memory
@@ -265,7 +265,7 @@ async function callModel(
         ...(images.length > 0 ? { images } : {}),
       },
     ],
-    options: OPTIONS,
+    options: { ...config.ollamaOptions, ...OPTIONS },
     format: "json",
   };
   const url = `${config.ollamaUrl.replace(/\/+$/, "")}/api/chat`;
@@ -275,7 +275,7 @@ async function callModel(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(config.llmTimeoutMs),
     });
   } catch (err) {
     throw new Error(`aggregateDay: fetch failed: ${err instanceof Error ? err.message : err}`);
