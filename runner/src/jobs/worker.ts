@@ -20,8 +20,9 @@ import { config } from "../config.ts";
 import { log } from "../logger.ts";
 import { CLUSTER_REGISTRY, type ClusterContext, type ProseContext } from "../clusters/index.ts";
 import { claim, release, type Scope } from "./cell.ts";
-import { popQueue, type QueueItem } from "./queue.ts";
+import { popQueue, queueSize, type QueueItem } from "./queue.ts";
 import { getRedis } from "./redis.ts";
+import { listActive } from "../state/run-tracker.ts";
 import { readAutoProcessSetting, readCriticEnabled } from "./settings.ts";
 import type { ProvenanceTag } from "./types.ts";
 import { parseAnomalyInputFromKey } from "../clusters/anomaly_explain/extract.ts";
@@ -119,7 +120,7 @@ async function runOne(item: QueueItem): Promise<void> {
   }
 
   const scope: Scope = item.scope ?? "daily";
-  const claimed = claim(item.cluster, item.key, DEFAULT_LEASE_MS, scope);
+  const claimed = await claim(item.cluster, item.key, DEFAULT_LEASE_MS, scope);
   if (!claimed) {
     // Another worker (or the dashboard route, in theory) already won the
     // race. Skip silently — the winner will release.
@@ -147,7 +148,7 @@ async function runOne(item: QueueItem): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn("worker", `${item.cluster}/${item.key} input parse: ${msg}`);
-    release(item.cluster, item.key, { payload: null, provenance: [] }, msg, scope);
+    await release(item.cluster, item.key, { payload: null, provenance: [] }, msg, scope);
     return;
   }
 
@@ -163,7 +164,7 @@ async function runOne(item: QueueItem): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error("worker", `${item.cluster}/${item.key} extract: ${msg}`);
-    release(item.cluster, item.key, { payload: null, provenance: [] }, msg, scope);
+    await release(item.cluster, item.key, { payload: null, provenance: [] }, msg, scope);
     return;
   }
 
@@ -181,7 +182,7 @@ async function runOne(item: QueueItem): Promise<void> {
     log.error("worker", `${item.cluster}/${item.key} prose: ${msg}`);
     // Surface partial extract payload so the dashboard still shows context.
     const partial = extracted as { payload?: unknown; provenance?: unknown };
-    release(
+    await release(
       item.cluster,
       item.key,
       {
@@ -200,7 +201,7 @@ async function runOne(item: QueueItem): Promise<void> {
     payload: unknown;
     provenance: ProvenanceTag[];
   };
-  release(
+  await release(
     item.cluster,
     item.key,
     {
@@ -268,8 +269,38 @@ export function startWorker(opts: StartWorkerOpts = {}): () => Promise<void> {
     log.error("worker", `loop crashed: ${(err as Error).message}`);
   });
 
+  /**
+   * Queue heartbeat. While the worker is alive we print one line every 15s
+   * IFF there is interesting activity (queue depth > 0 or runs in-flight).
+   * Stays quiet when fully idle so docker logs don't churn at night.
+   */
+  const heartbeat = setInterval(() => {
+    if (stopped) return;
+    const depth = queueSize();
+    const active = listActive();
+    if (depth === 0 && active.length === 0) return;
+    const oldest = active.reduce(
+      (min, r) => (r.started_at_ms < min ? r.started_at_ms : min),
+      Date.now(),
+    );
+    const elapsedS = active.length > 0 ? Math.round((Date.now() - oldest) / 1000) : 0;
+    const labels = active
+      .slice(0, 4)
+      .map((r) => `${r.cluster}/${r.key}`)
+      .join(",");
+    log.info(
+      "worker",
+      `queue depth=${depth} running=${active.length}${labels ? ` [${labels}]` : ""}${
+        active.length ? ` oldest=${elapsedS}s` : ""
+      }`,
+    );
+  }, 15_000);
+  // Don't keep the process alive purely for the heartbeat.
+  if (typeof heartbeat.unref === "function") heartbeat.unref();
+
   return async () => {
     stopped = true;
+    clearInterval(heartbeat);
     try {
       await inFlight;
     } catch {
