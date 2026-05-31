@@ -60,14 +60,17 @@ async function handle(ev: PulseEvent): Promise<void> {
   for (const cell of cells) {
     const reason = `event:${ev.kind}`;
     try {
-      markStale(cell.cluster, cell.key, reason, cell.scope ?? "daily");
+      await markStale(cell.cluster, cell.key, reason, cell.scope ?? "daily");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.warn("jobs", `markStale ${cell.cluster}/${cell.key}: ${msg}`);
       continue;
     }
     if (legacyHandles(cell.cluster, ev.kind)) {
-      log.info(
+      // The legacy `day_end` / `sleep_complete` subscriber paths still own
+      // these clusters end-to-end; the JobCell side only marks them stale.
+      // Demoted from info to debug — every day_end fanned 3 lines of noise.
+      log.debug(
         "jobs",
         `skip enqueue ${cell.cluster}/${cell.key} — legacy ${ev.kind} handles`,
       );

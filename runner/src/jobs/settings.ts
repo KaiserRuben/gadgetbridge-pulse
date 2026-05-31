@@ -1,29 +1,14 @@
 /**
  * Runtime settings reader — auto-process flag (per cluster + global) and
- * critic model toggle. Backed by PULSE_STATE_KV.
+ * critic model toggle. Backed by PULSE_STATE_KV on the Pi, reached via
+ * GET /api/state-kv/<key>.
  *
- * 60-second in-process cache: settings are written by the dashboard UI so a
- * read every job-dispatch tick would otherwise hammer pulse.db with point
- * queries. Cache TTL is short enough that a setting flip propagates within
- * a minute without operator action.
+ * 60-second in-process cache: settings change at human speed (dashboard
+ * toggles); a read every job-dispatch tick would otherwise hammer the Pi.
  */
 
-import type Database from "better-sqlite3";
+import { piStateKvGet } from "../ingest/client.ts";
 
-import { getWritableDb } from "../db-writable.ts";
-
-/**
- * OQ-5 per-cluster auto-process defaults. Mirrors `CLUSTER_COPY` in
- * `lib/derived/cluster-copy.ts` (dashboard-side) so the runner-side
- * default ladder is decoupled from the dashboard build. Kept as a flat
- * Record because the runner doesn't import dashboard modules.
- *
- * Resolution order for `readAutoProcessSetting(cluster)`:
- *   1. per-cluster key `settings:auto_process:<cluster>` (user override)
- *   2. global key `settings:auto_process` (user master switch)
- *   3. CLUSTER_AUTO_DEFAULTS[cluster] (this map)
- *   4. `false` (conservative fallback for unknown clusters)
- */
 const CLUSTER_AUTO_DEFAULTS: Record<string, boolean> = {
   synthesis_v3: true,
   morning_insight: true,
@@ -38,34 +23,10 @@ interface CacheEntry<T> {
   expires_at: number;
 }
 
-let _dbOverride: Database.Database | null = null;
 const _cache = new Map<string, CacheEntry<unknown>>();
-
-export function setSettingsDb(db: Database.Database | null): void {
-  _dbOverride = db;
-}
 
 export function _resetSettingsForTests(): void {
   _cache.clear();
-  _dbOverride = null;
-}
-
-function getDb(): Database.Database {
-  return _dbOverride ?? getWritableDb();
-}
-
-function readKv<T>(key: string): T | null {
-  try {
-    const row = getDb()
-      .prepare<[string], { value_json: string }>(
-        `SELECT value_json FROM PULSE_STATE_KV WHERE key = ?`,
-      )
-      .get(key);
-    if (!row) return null;
-    return JSON.parse(row.value_json) as T;
-  } catch {
-    return null;
-  }
 }
 
 function fromCache<T>(key: string, now: number): { hit: true; value: T } | { hit: false } {
@@ -99,28 +60,24 @@ export async function readAutoProcessSetting(cluster: string): Promise<boolean> 
   const cached = fromCache<boolean>(perCluster, now);
   if (cached.hit) return cached.value;
 
-  const local = asBoolean(readKv<unknown>(perCluster));
+  const local = asBoolean(await piStateKvGet<unknown>(perCluster));
   if (local !== null) {
     toCache(perCluster, local, now);
     return local;
   }
-  const global = asBoolean(readKv<unknown>("settings:auto_process"));
+  const global = asBoolean(await piStateKvGet<unknown>("settings:auto_process"));
   const resolved = global ?? CLUSTER_AUTO_DEFAULTS[cluster] ?? false;
   toCache(perCluster, resolved, now);
   return resolved;
 }
 
-/**
- * Whether the critic model gate runs after Stage 5 prose. Falls back to
- * `false` when unset so a fresh install doesn't burn GPU on a second pass.
- */
 export async function readCriticEnabled(): Promise<boolean> {
   const key = "settings:critic_model";
   const now = Date.now();
   const cached = fromCache<boolean>(key, now);
   if (cached.hit) return cached.value;
 
-  const v = asBoolean(readKv<unknown>(key));
+  const v = asBoolean(await piStateKvGet<unknown>(key));
   const resolved = v ?? false;
   toCache(key, resolved, now);
   return resolved;

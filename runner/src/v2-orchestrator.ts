@@ -64,7 +64,7 @@ import {
 } from "./analyzer/surprise-ranking.ts";
 import { detectPatterns } from "./analyzer/pattern-detection.ts";
 import { namePattern } from "./analyzer/pattern-naming.ts";
-import { readPatterns, upsertPattern } from "./analyzer/pattern-library.ts";
+import { bumpPattern, readPatterns, upsertPattern } from "./analyzer/pattern-library.ts";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -412,29 +412,21 @@ async function runDailyInner(periodKey: string, opts: RunOptions): Promise<RunRe
         // ── B. Pattern detection + naming ────────────────────────────────
         const clusters = await detectPatterns(config.insightsRoot, periodKey, 90);
         log.info("stage5b_patterns", `${clusters.length} recurring cluster(s)`);
-        const existingIds = new Set(readPatterns(200).map((p) => p.id));
+        const existingIds = new Set((await readPatterns(200)).map((p) => p.id));
         for (const cluster of clusters) {
           if (existingIds.has(cluster.signature_id)) {
-            // Bump occurrence_count + last_seen via upsertPattern (it
-            // increments on existing rows). Keep name/description as is.
+            // Bump occurrence_count + last_seen via the dedicated route. The
+            // earlier `upsertPattern({ name_de:"", description_de:null, ... })`
+            // call shape 400'd on the Pi's required-field validation and
+            // shipped dead fields the UPDATE branch ignored.
             try {
-              upsertPattern({
-                id: cluster.signature_id,
-                name_de: "", // unused on existing path (UPDATE keeps name)
-                description_de: null,
-                signature_json: JSON.stringify({
-                  centroid: cluster.centroid,
-                  salient_flags: cluster.salient_flags,
-                }),
-                first_seen: cluster.first_seen,
-                last_seen: cluster.last_seen,
-              });
+              await bumpPattern(cluster.signature_id, cluster.last_seen);
             } catch (innerErr) {
               const msg =
                 innerErr instanceof Error
                   ? innerErr.message
                   : String(innerErr);
-              log.warn("stage5b_patterns", `upsert ${cluster.signature_id} failed: ${msg}`);
+              log.warn("stage5b_patterns", `bump ${cluster.signature_id} failed: ${msg}`);
             }
             continue;
           }
@@ -457,7 +449,7 @@ async function runDailyInner(periodKey: string, opts: RunOptions): Promise<RunRe
             const named = await namePattern(cluster, exampleDays, {
               ollamaUrl: config.ollamaUrl,
             });
-            upsertPattern({
+            await upsertPattern({
               id: cluster.signature_id,
               name_de: named.name_de,
               description_de: named.description_de,

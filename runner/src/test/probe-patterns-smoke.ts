@@ -106,7 +106,7 @@ async function main(): Promise<void> {
 
       // ── Step 5: upsert + readback ────────────────────────────────────
       console.log(`\n=== STEP 5: upsertPattern() + readPatterns() ===`);
-      const upserted = upsertPattern({
+      const upserted = await upsertPattern({
         id: named.signature_id,
         name_de: named.name_de,
         description_de: named.description_de,
@@ -118,10 +118,14 @@ async function main(): Promise<void> {
         first_seen: named.first_seen,
         last_seen: named.last_seen,
       });
-      console.log(
-        `  upsert ok: id=${upserted.id} occ=${upserted.occurrence_count}`,
-      );
-      const all = readPatterns(10);
+      if (!upserted) {
+        console.error("  upsert failed (Pi unreachable)");
+      } else {
+        console.log(
+          `  upsert ok: id=${upserted.id} occ=${upserted.occurrence_count}`,
+        );
+      }
+      const all = await readPatterns(10);
       console.log(`  PULSE_PATTERN_LIBRARY rows: ${all.length}`);
       for (const r of all) {
         console.log(

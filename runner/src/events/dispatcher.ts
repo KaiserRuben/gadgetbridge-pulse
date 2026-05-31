@@ -74,12 +74,11 @@ export async function eventsLoop(opts: DispatcherOpts): Promise<void> {
   // pending rows that exceeded MAX_RETRIES. Pure SQLite UPDATE, runs on the
   // runner's pulse.db handle (same path as cell.claim/release).
   setInterval(() => {
-    try {
-      const swept = sweepStaleLeases(JOBCELL_LEASE_TTL_MS);
-      if (swept > 0) log.warn("jobs", `swept ${swept} stale lease(s)`);
-    } catch (err) {
-      log.error("jobs", `sweep tick: ${(err as Error).message}`);
-    }
+    sweepStaleLeases(JOBCELL_LEASE_TTL_MS)
+      .then((swept) => {
+        if (swept > 0) log.warn("jobs", `swept ${swept} stale lease(s)`);
+      })
+      .catch((err) => log.error("jobs", `sweep tick: ${(err as Error).message}`));
   }, JOBCELL_SWEEP_MS);
 
   // Syncthing-backed CTA queue drain — picks up user-clicked reprocess

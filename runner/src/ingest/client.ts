@@ -20,7 +20,13 @@ import { config } from "../config.ts";
 import { log } from "../logger.ts";
 import { enqueue } from "./outbox.ts";
 
-const DEFAULT_TIMEOUT_MS = 5_000;
+/**
+ * Pi POST default timeout. Previously 5s, which was too tight for a cold
+ * Pi route compile and produced steady "This operation was aborted" noise
+ * in the JobCell sweep log. 15s catches first-hit JIT comfortably while
+ * still aborting genuine hangs.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
 /** Read paths (GET /api/nutrition/pending, claim) tolerate cold-start JIT
  *  on the Pi's Next.js routes — 5s aborts a first-hit compile. */
 const READ_TIMEOUT_MS = 30_000;
@@ -36,7 +42,103 @@ export type IngestKind =
   | "event"
   | "period_atomic"
   | "meal"
-  | "food";
+  | "food"
+  | "notify"
+  | "run";
+
+// ── Connectivity-state log dedupe ───────────────────────────────────────────
+//
+// The Pi (and to a lesser extent host.docker.internal:11434) goes through
+// outage windows that previously flooded the log with one warn per tick.
+// Each helper that talks to a remote endpoint reports its outcome through
+// `noteEndpointResult(endpoint, ok, msg)`; the tracker emits:
+//
+//   - one `warn` per endpoint when it first goes down
+//   - one `warn` per minute as a low-frequency "still down" heartbeat
+//   - one `info` when it comes back up, with the outage duration
+//
+// `endpoint` is a logical name like `pi` or `ollama`, NOT a URL — multiple
+// helpers (piCellSweep, fetchPendingMeals, piPatternUpsert) share the same
+// state machine so they collectively log a single connectivity narrative.
+
+type Endpoint = "pi" | "ollama";
+
+interface EndpointState {
+  up: boolean;
+  /** ms since epoch when the current state started. */
+  since: number;
+  /** Last "still down" log emission. */
+  lastDownLog: number;
+  /** Last failure message we logged (compared to dedupe identical bursts). */
+  lastErrorMsg: string;
+}
+
+const DOWN_HEARTBEAT_MS = 60_000;
+const endpointState = new Map<Endpoint, EndpointState>();
+
+function getState(endpoint: Endpoint): EndpointState {
+  let s = endpointState.get(endpoint);
+  if (!s) {
+    s = { up: true, since: Date.now(), lastDownLog: 0, lastErrorMsg: "" };
+    endpointState.set(endpoint, s);
+  }
+  return s;
+}
+
+function humanDuration(ms: number): string {
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.round(min / 60);
+  return `${hr}h`;
+}
+
+/**
+ * Report a remote-call outcome. Returns the same `ok` value so callers can
+ * `return noteEndpointResult(..., result)` ergonomically.
+ */
+function noteEndpointResult(
+  endpoint: Endpoint,
+  ok: boolean,
+  errorMsg: string = "",
+): void {
+  const state = getState(endpoint);
+  const now = Date.now();
+  if (ok) {
+    if (!state.up) {
+      const downFor = humanDuration(now - state.since);
+      log.info("ingest", `${endpoint} reachable again after ${downFor}`);
+      state.up = true;
+      state.since = now;
+      state.lastDownLog = 0;
+      state.lastErrorMsg = "";
+    }
+    return;
+  }
+  if (state.up) {
+    log.warn("ingest", `${endpoint} unreachable — ${errorMsg.slice(0, 160)}`);
+    state.up = false;
+    state.since = now;
+    state.lastDownLog = now;
+    state.lastErrorMsg = errorMsg;
+    return;
+  }
+  // Already down. Suppress most lines; emit a heartbeat at most once a
+  // minute, and only when the error message changes meaningfully.
+  if (now - state.lastDownLog >= DOWN_HEARTBEAT_MS) {
+    const downFor = humanDuration(now - state.since);
+    log.warn("ingest", `${endpoint} still down for ${downFor} — ${errorMsg.slice(0, 120)}`);
+    state.lastDownLog = now;
+    state.lastErrorMsg = errorMsg;
+  }
+}
+
+/** Inspect current endpoint state (for tests + future stat endpoints). */
+export function endpointStatus(endpoint: Endpoint): { up: boolean; sinceMs: number } {
+  const s = getState(endpoint);
+  return { up: s.up, sinceMs: s.since };
+}
 
 export interface IngestResult {
   ok: boolean;
@@ -51,6 +153,21 @@ function idempotencyKey(kind: IngestKind, body: Record<string, unknown>): string
   // critical for `state` kind: two state keys with the same JSON-equal
   // value (e.g. both `null`) would otherwise share a key and one would be
   // silently swallowed by PULSE_INGEST_LOG.
+  //
+  // The `notify` kind needs special handling: the body contains a `context`
+  // map that can drift between retries (e.g. recomputed total_min), which
+  // would mint different hashes and bypass the ingest-level dedupe. The
+  // notification-level dedupe (PULSE_PUSH_LOG hasRecentDedupe by dedupeKey)
+  // already covers application-level "don't push this twice"; the ingest
+  // log only needs to swallow exact network retries. So we key the notify
+  // ingest exclusively on (kind, topic, dedupeKey ?? periodKey) — drift in
+  // unrelated fields can't fragment the dedupe envelope.
+  if (kind === "notify") {
+    const topic = (body.topic as string) ?? "";
+    const dedupeKey = (body.dedupeKey as string) ?? "";
+    const periodKey = (body.periodKey as string) ?? "";
+    return `notify|${topic}|${dedupeKey || periodKey}`;
+  }
   const periodKey = (body.periodKey as string) ?? "";
   const cluster = (body.cluster as string) ?? "";
   const status = (body.status as string) ?? "";
@@ -93,6 +210,7 @@ async function doPost(
       signal: controller.signal,
     });
     if (!res.ok) {
+      noteEndpointResult("pi", false, `HTTP ${res.status}`);
       return {
         ok: false,
         queued: false,
@@ -100,12 +218,15 @@ async function doPost(
         error: `HTTP ${res.status}`,
       };
     }
+    noteEndpointResult("pi", true);
     return { ok: true, queued: false, status: res.status };
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    noteEndpointResult("pi", false, msg);
     return {
       ok: false,
       queued: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: msg,
     };
   } finally {
     clearTimeout(timer);
@@ -120,8 +241,11 @@ async function send(
   const idemKey = idempotencyKey(kind, body);
   const result = await doPost(kind, body, idemKey);
   if (!result.ok) {
-    enqueue({ kind, body, idemKey });
-    return { ...result, queued: true };
+    // Telemetry rows (`run` kind) are noisy and the dashboard is fine if a
+    // heartbeat drop arrives the next tick — skip the outbox to keep the
+    // queue focused on durable writes (facts/insight/bundle/meal).
+    if (kind !== "run") enqueue({ kind, body, idemKey });
+    return { ...result, queued: kind !== "run" };
   }
   return result;
 }
@@ -157,6 +281,39 @@ export interface PushInsightInput {
   leasedAt?: string | null;
   errorText?: string | null;
   retries?: number | null;
+  /**
+   * Optional notification intent. Authoring is per-cluster: the Stage 4
+   * prose pass on the runner side can decide whether to ship a notify
+   * block. Pi-side ingest passes this verbatim to the notifier funnel.
+   * The renderer's language guard rejects exclamation marks and emoji,
+   * so authors must keep the tone observational.
+   */
+  notify?: PushNotifyHint;
+}
+
+/**
+ * Inline notify hint shape — keep in lock-step with
+ * lib/notifications/types.ts NotifyHint on the Pi side. Both use the
+ * same JSON wire format.
+ */
+export type PushNotifyTopic =
+  | "meal_classified"
+  | "day_finalized"
+  | "sleep_complete"
+  | "workout_complete"
+  | "pattern_detected"
+  | "safety_anomaly"
+  | "coach_quote"
+  | "test";
+
+export interface PushNotifyHint {
+  topic: PushNotifyTopic;
+  title: string;
+  body: string;
+  url: string;
+  dedupeKey: string;
+  ttlMinutes?: number;
+  priority?: "low" | "normal" | "high";
 }
 
 export function pushInsight(input: PushInsightInput): Promise<IngestResult> {
@@ -328,6 +485,34 @@ export function pushFood(input: PushFoodInput): Promise<IngestResult> {
   return send("food", input as unknown as Record<string, unknown>);
 }
 
+// ── Notify intent ───────────────────────────────────────────────────────────
+
+export interface PushNotifyInput {
+  topic: PushNotifyTopic;
+  periodKey: string;
+  /** Optional inline LLM-authored notify hint. */
+  hint?: PushNotifyHint;
+  /** Free-form context for the Pi-side fallback renderer. */
+  context?: Record<string, unknown>;
+  /** Override the renderer's default deep link. */
+  url?: string;
+  /** Override the dedupe key (default `{topic}:{periodKey}`). */
+  dedupeKey?: string;
+  /** Priority bucket: low respects quiet hours strictly; high bypasses. */
+  priority?: "low" | "normal" | "high";
+}
+
+/**
+ * Fire a standalone notification intent at the Pi notifier. Use this for
+ * events that don't naturally piggyback on an existing insight/meal/bundle
+ * write (e.g. sleep_complete, workout_complete, coach_quote). The Pi's
+ * /api/ingest/notify route calls notifier.notify() which runs the full
+ * policy gate before any web-push fanout.
+ */
+export function pushNotify(input: PushNotifyInput): Promise<IngestResult> {
+  return send("notify", input as unknown as Record<string, unknown>);
+}
+
 // ── Pi → Mac read helpers ────────────────────────────────────────────────────
 //
 // These call the Pi dashboard's read routes (NOT /api/ingest/*) so the Mac
@@ -378,12 +563,17 @@ async function piGet<T>(pathAndQuery: string): Promise<
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      return { ok: false, error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+      const msg = `HTTP ${res.status}: ${text.slice(0, 200)}`;
+      noteEndpointResult("pi", false, msg);
+      return { ok: false, error: msg };
     }
+    noteEndpointResult("pi", true);
     const data = (await res.json()) as T;
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const msg = err instanceof Error ? err.message : String(err);
+    noteEndpointResult("pi", false, msg);
+    return { ok: false, error: msg };
   } finally {
     clearTimeout(timer);
   }
@@ -396,7 +586,7 @@ async function piGet<T>(pathAndQuery: string): Promise<
 export async function fetchPendingMeals(limit = 16): Promise<PendingMealDTO[]> {
   const r = await piGet<PendingResponse>(`/api/nutrition/pending?limit=${limit}`);
   if (!r.ok) {
-    log.warn("ingest", `fetchPendingMeals: ${r.error}`);
+    // Connectivity state already logged the outage; suppress per-tick warn.
     return [];
   }
   if (r.data.swept > 0) {
@@ -443,6 +633,328 @@ export async function claimMeal(mealId: string): Promise<ClaimResult> {
     return { ok: body.ok, meal: body.meal };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ── JobCell HTTP wrappers ───────────────────────────────────────────────────
+//
+// Single-writer architecture: only the Pi mutates pulse.db. The runner's
+// cell.ts module is now an HTTP shim that posts each atomic op to the Pi.
+// All calls share the bearer token and surface a clean ok/null Result so
+// callers don't need to know about Pi availability.
+
+export type CellScope = "daily" | "weekly";
+export type CellInsightStatus = "pending" | "live" | "partial" | "complete";
+export type CellState = CellInsightStatus | "empty";
+
+export interface CellProvenanceTag {
+  source: string;
+  detail?: unknown;
+}
+
+export interface CellResult {
+  cluster: string;
+  key: string;
+  scope: CellScope;
+  state: CellState;
+  payload: unknown;
+  provenance: CellProvenanceTag[];
+  started_at: string | null;
+  leased_at: string | null;
+  error_text: string | null;
+  retries: number;
+  updated_at: string;
+}
+
+async function piCellPost<T>(
+  op: string,
+  body: Record<string, unknown>,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  if (!config.ingestBaseUrl) return { ok: false, error: "INGEST_BASE_URL empty" };
+  const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/jobs/cell/${op}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.ingestToken ? { authorization: `Bearer ${config.ingestToken}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      const msg = `HTTP ${res.status}: ${txt.slice(0, 200)}`;
+      noteEndpointResult("pi", false, msg);
+      return { ok: false, error: msg };
+    }
+    noteEndpointResult("pi", true);
+    const data = (await res.json()) as T;
+    return { ok: true, data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    noteEndpointResult("pi", false, msg);
+    return { ok: false, error: msg };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function piCellClaim(
+  cluster: string,
+  key: string,
+  scope: CellScope = "daily",
+): Promise<CellResult | null> {
+  const r = await piCellPost<{ cell: CellResult | null }>("claim", { cluster, key, scope });
+  // Outage already surfaced via noteEndpointResult; per-call warn is noise.
+  if (!r.ok) return null;
+  return r.data.cell;
+}
+
+export async function piCellRelease(
+  cluster: string,
+  key: string,
+  payload: unknown,
+  provenance: CellProvenanceTag[],
+  error: string | null,
+  scope: CellScope = "daily",
+): Promise<boolean> {
+  const r = await piCellPost<{ ok: boolean }>("release", {
+    cluster,
+    key,
+    scope,
+    payload,
+    provenance,
+    error,
+  });
+  if (!r.ok) return false;
+  return r.data.ok;
+}
+
+export async function piCellMarkStale(
+  cluster: string,
+  key: string,
+  reason: string,
+  scope: CellScope = "daily",
+): Promise<boolean> {
+  const r = await piCellPost<{ ok: boolean }>("markStale", { cluster, key, scope, reason });
+  if (!r.ok) return false;
+  return r.data.ok;
+}
+
+export async function piCellEnqueuePending(
+  cluster: string,
+  key: string,
+  scope: CellScope = "daily",
+): Promise<boolean> {
+  const r = await piCellPost<{ ok: boolean }>("enqueue", { cluster, key, scope });
+  if (!r.ok) return false;
+  return r.data.ok;
+}
+
+export async function piCellSweep(ttlMs: number, maxRetries: number): Promise<number> {
+  const r = await piCellPost<{ swept: number }>("sweep", { ttlMs, maxRetries });
+  if (!r.ok) return 0;
+  return r.data.swept;
+}
+
+export async function piCellRead(
+  cluster: string,
+  key: string,
+  scope: CellScope = "daily",
+): Promise<CellResult | null> {
+  const r = await piCellPost<{ cell: CellResult | null }>("read", { cluster, key, scope });
+  if (!r.ok) return null;
+  return r.data.cell;
+}
+
+// ── Pattern library HTTP wrappers ───────────────────────────────────────────
+
+export interface PatternEntry {
+  id: string;
+  name_de: string;
+  description_de: string | null;
+  signature_json: string;
+  first_seen: string;
+  last_seen: string;
+  occurrence_count: number;
+  user_confirmed: boolean;
+}
+
+export async function piPatternList(limit = 50): Promise<PatternEntry[]> {
+  const r = await piGet<{ patterns: PatternEntry[] }>(`/api/patterns/list?limit=${limit}`);
+  if (!r.ok) {
+    log.warn("ingest", `piPatternList: ${r.error}`);
+    return [];
+  }
+  return r.data.patterns;
+}
+
+export async function piPatternUpsert(
+  entry: Omit<PatternEntry, "occurrence_count" | "user_confirmed">,
+): Promise<PatternEntry | null> {
+  if (!config.ingestBaseUrl) return null;
+  const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/patterns/upsert`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.ingestToken ? { authorization: `Bearer ${config.ingestToken}` } : {}),
+      },
+      body: JSON.stringify({ entry }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      log.warn("ingest", `piPatternUpsert ${entry.id}: HTTP ${res.status}`);
+      return null;
+    }
+    const body = (await res.json()) as { pattern: PatternEntry };
+    return body.pattern;
+  } catch (err) {
+    log.warn("ingest", `piPatternUpsert ${entry.id}: ${err instanceof Error ? err.message : err}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Bump occurrence_count + last_seen on an existing pattern row. Returns the
+ * fresh row, or null when the Pi is unreachable / id is unknown. Use this
+ * for "we saw the same cluster again" — `piPatternUpsert` is reserved for
+ * truly first-seen patterns (it needs name_de + description_de).
+ */
+export async function piPatternBump(
+  id: string,
+  last_seen: string,
+): Promise<PatternEntry | null> {
+  if (!config.ingestBaseUrl) return null;
+  const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/patterns/bump`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.ingestToken ? { authorization: `Bearer ${config.ingestToken}` } : {}),
+      },
+      body: JSON.stringify({ id, last_seen }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { pattern: PatternEntry };
+    return body.pattern;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function piPatternConfirm(id: string, name_de?: string): Promise<boolean> {
+  if (!config.ingestBaseUrl) return false;
+  const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/patterns/confirm`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.ingestToken ? { authorization: `Bearer ${config.ingestToken}` } : {}),
+      },
+      body: JSON.stringify({ id, name_de }),
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ── State-KV read helper ────────────────────────────────────────────────────
+
+export async function piStateKvGet<T = unknown>(key: string): Promise<T | null> {
+  const r = await piGet<{ value: T | null }>(`/api/state-kv/${encodeURIComponent(key)}`);
+  if (!r.ok) return null;
+  return r.data.value;
+}
+
+// ── Run telemetry (PULSE_RUN) ───────────────────────────────────────────────
+//
+// `pushRun` is the only writer for the new runner observability table. It
+// piggybacks on /api/ingest/run (the catch-all kind="run" handler on the Pi)
+// and bypasses the outbox via the `kind === "run"` clause in `send` — a
+// dropped heartbeat is fine, the next one arrives within seconds.
+
+export interface RunUpsertBody {
+  op: "upsert";
+  run_id: string;
+  cluster: string;
+  key: string;
+  scope?: "daily" | "weekly" | "instant";
+  stage?: string | null;
+  attempt?: number;
+  status: "queued" | "running" | "ok" | "fail" | "orphaned";
+  started_at?: string | null;
+  last_heartbeat_at?: string | null;
+  finished_at?: string | null;
+  elapsed_ms?: number | null;
+  prompt_chars?: number | null;
+  eval_tokens?: number | null;
+  error_text?: string | null;
+  parent_run_id?: string | null;
+  meta?: Record<string, unknown> | null;
+  host?: string | null;
+}
+
+export interface RunOrphanBody {
+  op: "orphan";
+  olderThanMs?: number;
+}
+
+export type RunBody = RunUpsertBody | RunOrphanBody;
+
+/**
+ * POST a run-state row (start/heartbeat/finish/fail/orphan-sweep). Returns
+ * the parsed response when available so the orphan-sweep call can read the
+ * count. Telemetry-only — failures are silently dropped at the `send` layer.
+ */
+export async function pushRun(body: RunBody): Promise<{ swept?: number } | null> {
+  if (!config.ingestBaseUrl) return null;
+  const url = `${config.ingestBaseUrl.replace(/\/+$/, "")}/api/ingest/run`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.ingestToken ? { authorization: `Bearer ${config.ingestToken}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      noteEndpointResult("pi", false, `HTTP ${res.status}`);
+      return null;
+    }
+    noteEndpointResult("pi", true);
+    return (await res.json().catch(() => ({}))) as { swept?: number };
+  } catch (err) {
+    noteEndpointResult("pi", false, err instanceof Error ? err.message : String(err));
+    return null;
   } finally {
     clearTimeout(timer);
   }

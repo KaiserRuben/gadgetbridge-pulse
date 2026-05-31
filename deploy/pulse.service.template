@@ -34,6 +34,8 @@ Environment=STATE_ROOT={{PULSE_DATA_ROOT}}/state
 # (Why? button, screenshot ingest) reach the Mac's qwen3.6. Without this,
 # those routes fail with ECONNREFUSED on the Pi.
 Environment=OLLAMA_URL={{OLLAMA_URL}}
+# pulse.db single-writer host.
+Environment=PULSE_ROLE=writer
 ExecStart={{NODE_BIN}} .next/standalone/server.js
 Restart=on-failure
 RestartSec=5
