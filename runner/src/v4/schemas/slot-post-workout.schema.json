@@ -1,0 +1,94 @@
+{
+  "$id": "slot-post-workout.schema.json",
+  "title": "PostWorkoutPayload",
+  "description": "Per-workout reflection fired 5 min after workout_complete. Reads the specific workout summary + tier1. One SlotEntry per event_id (the workout's ts_start_iso).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "load_assessment",
+    "recovery_window",
+    "fueling_hint",
+    "next_session_hint",
+    "kpis",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "post-workout/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "load_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning", "level", "vs_recent"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "level": { "enum": ["light", "moderate", "hard", "max"] },
+        "vs_recent": { "type": "string", "minLength": 8, "maxLength": 120 }
+      }
+    },
+    "recovery_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning", "hours_estimated", "guidance"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "hours_estimated": { "type": ["number", "null"], "minimum": 0, "maximum": 96 },
+        "guidance": { "type": "string", "minLength": 8, "maxLength": 200 }
+      }
+    },
+    "fueling_hint": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reasoning", "anchor", "tiny", "why"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+        "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+        "why": { "type": "string", "minLength": 8 }
+      }
+    },
+    "next_session_hint": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "kpis": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "id", "label_de", "value", "band"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$" },
+          "label_de": { "type": "string", "minLength": 3, "maxLength": 40 },
+          "value": { "type": "number", "minimum": 0, "maximum": 100 },
+          "band": { "enum": ["above_usual", "steady", "below_usual"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

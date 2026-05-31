@@ -11,6 +11,8 @@
  *   tsx src/index.ts daily-watch                  # live mode: facts+rules+alarms only
  *   tsx src/index.ts daily-finalize [--date=YYYY-MM-DD]  # one-shot, full LLM pipeline for a completed day
  *   tsx src/index.ts daily-finalize-loop          # long-running: scans for un-finalised past days every 5 min
+ *   tsx src/index.ts v4-daemon [--tick=60]        # v4 pipeline: tier1 + slot scheduler + chokidar events
+ *   tsx src/index.ts v4-backfill [--days=7] [--date=YYYY-MM-DD] [--dry-run]
  */
 
 import chokidar from "chokidar";
@@ -376,6 +378,32 @@ async function main() {
       } else {
         console.log(`[events-loop] ingest target: ${config.ingestBaseUrl}`);
       }
+      // Boot-time + periodic recovery: any PULSE_RUN row left in `running`
+      // whose last_heartbeat_at is older than 90s belongs to a process that
+      // died without finishing. The boot sweep catches rows from a previous
+      // container; the periodic sweep catches rows orphaned mid-session
+      // (e.g. a worker that crashed but the parent process kept going).
+      const RUN_ORPHAN_CUTOFF_MS = 90_000;
+      try {
+        const { markOrphans } = await import("./state/run-tracker.ts");
+        const swept = await markOrphans(RUN_ORPHAN_CUTOFF_MS);
+        if (swept > 0) {
+          console.log(
+            `[events-loop] recovery: marked ${swept} stale PULSE_RUN row(s) as orphaned`,
+          );
+        }
+        // 60s tick is enough — heartbeats fire every 30s so a row with a
+        // 90s+ stale heartbeat is genuinely dead. Unref so the interval
+        // doesn't keep the process alive on its own.
+        const sweepTimer = setInterval(() => {
+          void markOrphans(RUN_ORPHAN_CUTOFF_MS).catch(() => undefined);
+        }, 60_000);
+        if (typeof sweepTimer.unref === "function") sweepTimer.unref();
+      } catch (err) {
+        console.warn(
+          `[events-loop] recovery sweep skipped: ${(err as Error).message}`,
+        );
+      }
       // JobCell worker: drains user-triggered + auto-process cells from the
       // queue. Spawned alongside the bus so a single `events-loop` process
       // covers both the event-driven pipeline and the cluster fan-out.
@@ -441,6 +469,30 @@ async function main() {
       await import("./scripts/backfill-completion.ts");
       break;
     }
+    case "v4-daemon": {
+      const tickArg = args.find((a) => a.startsWith("--tick="))?.slice(7);
+      const tickSec = tickArg ? parseInt(tickArg, 10) : 60;
+      if (!Number.isFinite(tickSec) || tickSec < 5 || tickSec > 3600) {
+        console.error(`invalid --tick=${tickArg}; expected 5-3600 seconds`);
+        process.exit(1);
+      }
+      const { startV4Daemon, blockForever } = await import("./v4/scheduler/run.ts");
+      const handle = await startV4Daemon({ tickMs: tickSec * 1000 });
+      await blockForever(handle);
+      break;
+    }
+    case "v4-backfill": {
+      const daysArg = args.find((a) => a.startsWith("--days="))?.slice(7);
+      const days = daysArg ? parseInt(daysArg, 10) : 7;
+      if (!Number.isFinite(days) || days < 1 || days > 60) {
+        console.error(`invalid --days=${daysArg}; expected 1-60`);
+        process.exit(1);
+      }
+      const { runV4Backfill } = await import("./v4/scheduler/backfill.ts");
+      const result = await runV4Backfill({ days, date: dateArg, dryRun });
+      if (result.failed > 0) process.exit(1);
+      break;
+    }
     case "nutrition-cluster": {
       const { runNutritionCluster } = await import("./v3/packagers/nutrition.ts");
       const { startOutboxFlusher, outboxSize } = await import("./ingest/outbox.ts");
@@ -477,6 +529,8 @@ async function main() {
           "  daily-finalize-loop [--lookback=7] [--interval=300]\n" +
           "  events-loop [--lookback=7]                  # event-driven (replaces daily-watch + finalize-loop)\n" +
           "  events-emit --kind=manual [--date=YYYY-MM-DD]\n" +
+          "  v4-daemon [--tick=60]                       # v4 pipeline: 60s tick + chokidar event derivation\n" +
+          "  v4-backfill [--days=7] [--date=YYYY-MM-DD] [--dry-run]  # v4 single-shot per past day\n" +
           "  backfill [--days=30] [--dry-run]\n" +
           "  backfill-alarms [--days=30] [--dry-run]\n" +
           "  nutrition-cluster [--date=YYYY-MM-DD] [--force]  # one-shot Stage C aggregator",

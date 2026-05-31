@@ -1,0 +1,84 @@
+{
+  "$id": "slot-evening-review.schema.json",
+  "title": "EveningReviewPayload",
+  "description": "Evening review (~19:00 local). Reads midday_check + tier1.kpis_today + workouts. Reflects on the day so far + hints at wind-down.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "day_so_far",
+    "workout_impact",
+    "wind_down_suggestion",
+    "kpis",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "evening-review/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "day_so_far": {
+      "type": ["string", "null"],
+      "description": "Activity / movement summary of the day. Must cite ≥2 numbers (steps, kcal, workout load, etc.)."
+    },
+    "workout_impact": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reasoning", "load_assessment", "recovery_hint"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "load_assessment": { "enum": ["light", "moderate", "hard", "max", "no_workout"] },
+        "recovery_hint": { "type": "string", "minLength": 8, "maxLength": 200 }
+      }
+    },
+    "wind_down_suggestion": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reasoning", "anchor", "tiny", "why"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+        "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+        "why": { "type": "string", "minLength": 8 }
+      }
+    },
+    "kpis": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 4,
+      "description": "First 2 in this exact order: activity_load, autonomic_balance.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "id", "label_de", "value", "band"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$" },
+          "label_de": { "type": "string", "minLength": 3, "maxLength": 40 },
+          "value": { "type": "number", "minimum": 0, "maximum": 100 },
+          "band": { "enum": ["above_usual", "steady", "below_usual"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "$id": "slot-night-review.schema.json",
+  "title": "NightReviewPayload",
+  "description": "Output of the `night_review` slot. Analyses the night that just ended (the period_key's local sleep window). Every prose field cites at least one concrete number from the package; KPI bands must be consistent with their values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "analysis_today",
+    "analysis_context",
+    "suggestions_today",
+    "kpis",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "night-review/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "analysis_today": { "type": ["string", "null"] },
+    "analysis_context": { "type": ["string", "null"] },
+    "suggestions_today": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "anchor", "tiny", "why", "horizon"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+          "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+          "why": { "type": "string", "minLength": 8 },
+          "horizon": { "enum": ["today", "tonight"] }
+        }
+      }
+    },
+    "kpis": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "description": "First 3 in this exact order: sleep_quality, recovery_readiness, sleep_consistency.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "id", "label_de", "value", "band"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$" },
+          "label_de": { "type": "string", "minLength": 3, "maxLength": 40 },
+          "value": { "type": "number", "minimum": 0, "maximum": 100 },
+          "band": { "enum": ["above_usual", "steady", "below_usual"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

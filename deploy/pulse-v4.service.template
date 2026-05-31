@@ -38,6 +38,9 @@ Environment=STATE_ROOT={{PULSE_DATA_ROOT}}/state
 Environment=ALARMS_ROOT={{PULSE_DATA_ROOT}}/insights/alarms
 Environment=OLLAMA_URL={{OLLAMA_URL}}
 Environment=TZ={{TZ}}
+# pulse.db single-writer host. Mac sets PULSE_ROLE=reader so its
+# getWritableDb throws; Pi must be writer.
+Environment=PULSE_ROLE=writer
 
 ExecStart={{NODE_BIN}} {{REPO_PATH}}/.next/standalone/server.js
 

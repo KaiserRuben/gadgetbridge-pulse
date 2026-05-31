@@ -103,11 +103,11 @@ export type NavSection = {
  * sheet still opens via the persistent ⋯ slot in the bottom nav.
  */
 export const NAV_PRIMARY_MOBILE: readonly NavItem[] = [
-  { href: "/", label: "Home", icon: "Home", match: "^/(\\?|$)" },
-  { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
+  { href: "/v4", label: "Home", icon: "Home", match: "^/(v4)?(\\?|$)" },
   { href: "/training", label: "Training", icon: "Dumbbell", match: "^/training(/|$)" },
   { href: "/coach", label: "Coach", icon: "Brain", match: "^/coach(/|$)" },
   { href: "/nutrition", label: "Ernährung", icon: "Utensils", match: "^/nutrition(/|$)" },
+  { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
 ] as const;
 
 /**
@@ -116,12 +116,6 @@ export const NAV_PRIMARY_MOBILE: readonly NavItem[] = [
  * weekly overview, secondary domains, tools, and admin pages.
  */
 export const NAV_SHEET_MOBILE: readonly NavItem[] = [
-  { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
-  { href: "/recovery", label: "Erholung", icon: "HeartPulse", match: "^/recovery(/|$)" },
-  { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
-  { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
-  { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
-  { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
   { href: "/activities", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
   { href: "/explore", label: "Explore", icon: "BarChart2", match: "^/explore(/|$)" },
   { href: "/alarms", label: "Alarme", icon: "Bell", match: "^/alarms(/|$)" },
@@ -129,6 +123,14 @@ export const NAV_SHEET_MOBILE: readonly NavItem[] = [
   { href: "/profile", label: "Profil", icon: "User", match: "^/profile(/|$)" },
   { href: "/settings", label: "Einstellungen", icon: "Settings", match: "^/settings(/|$)" },
   { href: "/labs", label: "Labs", icon: "FlaskConical", match: "^/labs(/|$)" },
+  // Legacy per-domain pages (kept reachable while v4 slots stabilise).
+  { href: "/", label: "Legacy Home", icon: "History", match: "^/$" },
+  { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
+  { href: "/recovery", label: "Erholung (v3)", icon: "HeartPulse", match: "^/recovery(/|$)" },
+  { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
+  { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
+  { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
+  { href: "/stress", label: "Stress (v3)", icon: "Waves", match: "^/stress(/|$)" },
 ] as const;
 
 /**
@@ -146,25 +148,34 @@ export const NAV_DESKTOP_SECTIONS: readonly NavSection[] = [
   {
     label: null,
     items: [
-      { href: "/", label: "Home", icon: "Home", match: "^/$" },
+      { href: "/v4", label: "Home", icon: "Home", match: "^/(v4)?(\\?|$)" },
       { href: "/coach", label: "Coach", icon: "Brain", match: "^/coach(/|$)" },
-      { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
       { href: "/training", label: "Training", icon: "Dumbbell", match: "^/training(/|$)" },
       { href: "/nutrition", label: "Ernährung", icon: "Utensils", match: "^/nutrition(/|$)" },
+      { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
     ],
   },
   {
     label: "Weitere",
     items: [
-      { href: "/week", label: "Woche", icon: "CalendarRange", match: "^/week(/|$)" },
-      { href: "/recovery", label: "Erholung", icon: "HeartPulse", match: "^/recovery(/|$)" },
-      { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
-      { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
-      { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
-      { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
       { href: "/workouts", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
       { href: "/explore", label: "Explore", icon: "BarChart2", match: "^/explore(/|$)" },
       { href: "/log", label: "Log", icon: "PenLine", match: "^/log(/|$)" },
+      { href: "/alarms", label: "Alarme", icon: "Bell", match: "^/alarms(/|$)" },
+    ],
+  },
+  {
+    // Legacy per-domain dashboards. Slots in v4 cover the same data; kept
+    // reachable while v4 stabilises. Drop this section once Phase 4 lands.
+    label: "Legacy",
+    items: [
+      { href: "/", label: "Legacy Home", icon: "History", match: "^/$" },
+      { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
+      { href: "/recovery", label: "Erholung (v3)", icon: "HeartPulse", match: "^/recovery(/|$)" },
+      { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
+      { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
+      { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
+      { href: "/stress", label: "Stress (v3)", icon: "Waves", match: "^/stress(/|$)" },
     ],
   },
 ] as const;

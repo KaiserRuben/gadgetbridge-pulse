@@ -1,0 +1,127 @@
+{
+  "$id": "view-state.schema.json",
+  "title": "ViewState",
+  "description": "Single source of truth for what the dashboard renders for one period. Pi-resident, atomic-merged from Mac POSTs. UI reads ONE file per request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "period_key", "scope", "generated_at", "tier1", "slots", "events", "meta", "version"],
+  "properties": {
+    "schema_version": { "const": "view/v1" },
+    "period_key": {
+      "type": "string",
+      "description": "YYYY-MM-DD for scope=daily, YYYY-Www for scope=weekly. Identifies which period this view describes."
+    },
+    "scope": { "enum": ["daily", "weekly"] },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last full assembly time. Useful for cache headers; per-block freshness comes from tier1.computed_at and slot.computed_at."
+    },
+    "tier1": { "$ref": "tier1.schema.json" },
+    "slots": {
+      "type": "object",
+      "description": "Fixed slot positions for this scope. Daily has 5; weekly has 1 (week_synthesis).",
+      "additionalProperties": false,
+      "properties": {
+        "night_review":     { "$ref": "slot-entry.schema.json" },
+        "morning_briefing": { "$ref": "slot-entry.schema.json" },
+        "midday_check":     { "$ref": "slot-entry.schema.json" },
+        "evening_review":   { "$ref": "slot-entry.schema.json" },
+        "day_synthesis":    { "$ref": "slot-entry.schema.json" },
+        "week_synthesis":   { "$ref": "slot-entry.schema.json" }
+      }
+    },
+    "events": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["post_workout", "anomaly_explain"],
+      "description": "Dynamic count slots. One entry per workout / anomaly explanation. Keyed by event_id (workout end_iso or observation_id).",
+      "properties": {
+        "post_workout": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "slot-entry.schema.json" },
+              {
+                "type": "object",
+                "required": ["event_id", "workout_ref"],
+                "properties": {
+                  "event_id": { "type": "string" },
+                  "workout_ref": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["ts_start_iso", "ts_end_iso", "kind"],
+                    "properties": {
+                      "ts_start_iso": { "type": "string", "format": "date-time" },
+                      "ts_end_iso": { "type": "string", "format": "date-time" },
+                      "kind": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "anomaly_explain": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "slot-entry.schema.json" },
+              {
+                "type": "object",
+                "required": ["event_id", "observation_id"],
+                "properties": {
+                  "event_id": { "type": "string" },
+                  "observation_id": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["next_refresh_at", "last_runner_heartbeat", "last_phone_sync_at", "pipeline_health", "held_back"],
+      "properties": {
+        "next_refresh_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Earliest upcoming scheduled tick — next slot's scheduled_for OR tier1 refresh, whichever sooner."
+        },
+        "last_runner_heartbeat": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the Mac scheduler last ticked. UI flags 'runner offline' when older than ~3 min."
+        },
+        "last_phone_sync_at": {
+          "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+          "description": "Last Gadgetbridge.db mtime observed by Mac chokidar. Null when never seen."
+        },
+        "pipeline_health": {
+          "enum": ["ok", "degraded", "stalled"],
+          "description": "ok = all due slots fresh/aging. degraded = ≥1 slot stale/errored. stalled = runner heartbeat > 5 min old."
+        },
+        "held_back": {
+          "type": "array",
+          "description": "Slots not scheduled or held in scheduled state with a reason (user pause, data too thin, dependency missing).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot_id", "reason"],
+            "properties": {
+              "slot_id": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic doc version. Bumped on every Pi-side atomic merge. Mac includes If-Match header on PATCH for CAS."
+    }
+  }
+}

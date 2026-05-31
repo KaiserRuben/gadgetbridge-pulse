@@ -1,0 +1,82 @@
+{
+  "$id": "slot-week-synthesis.schema.json",
+  "title": "WeekSynthesisPayload",
+  "description": "Weekly synthesis composed from up to 7 day_synthesis payloads + week-aggregated tier1. Soft-degrades when day_synthesis count < 5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "week_narrative",
+    "top_anchors",
+    "next_week_focus",
+    "kpis",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "week-synthesis/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "week_narrative": {
+      "type": ["string", "null"],
+      "description": "Week story (≤800 chars). Must cite ≥4 distinct numbers across the week."
+    },
+    "top_anchors": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "signal", "takeaway"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "signal": { "type": "string", "minLength": 4, "maxLength": 80 },
+          "takeaway": { "type": "string", "minLength": 8, "maxLength": 200 }
+        }
+      }
+    },
+    "next_week_focus": {
+      "type": ["string", "null"],
+      "maxLength": 240
+    },
+    "kpis": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "description": "First 3 in this exact order: week_score, week_consistency, week_momentum.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "id", "label_de", "value", "band"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$" },
+          "label_de": { "type": "string", "minLength": 3, "maxLength": 40 },
+          "value": { "type": "number", "minimum": 0, "maximum": 100 },
+          "band": { "enum": ["above_usual", "steady", "below_usual"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

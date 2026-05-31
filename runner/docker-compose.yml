@@ -18,10 +18,17 @@ x-runner-base: &runner-base
     # mode. Set both to enable progressive HTTP push to the Pi dashboard.
     PULSE_INGEST_BASE_URL: ${PULSE_INGEST_BASE_URL:-}
     PULSE_INGEST_TOKEN: ${PULSE_INGEST_TOKEN:-}
-    PULSE_INGEST_OUTBOX_PATH: /data/ingest-outbox.db
+    # v4 daemon Pi target — slot/tier1/meta diffs POST here. Defaults to the
+    # legacy PULSE_INGEST_BASE_URL so one env var keeps working.
+    PULSE_PI_BASE_URL: ${PULSE_PI_BASE_URL:-${PULSE_INGEST_BASE_URL:-}}
+    # Outbox is mac-runner-local state — lives in a docker-named volume,
+    # NOT in $PULSE_ROOT (Syncthing folder) where bidirectional sync would
+    # corrupt the SQLite WAL.
+    PULSE_INGEST_OUTBOX_PATH: /runner-state/ingest-outbox.db
     USDA_FDC_API_KEY: ${USDA_FDC_API_KEY:-}
   volumes:
     - "${PULSE_ROOT:-./pulse}:/data"
+    - runner-state:/runner-state
     - ./src:/app/src:ro
   extra_hosts:
     - "host.docker.internal:host-gateway"
@@ -52,3 +59,27 @@ services:
           cpus: "4.0"
           memory: 2G
     command: ["node_modules/.bin/tsx", "src/index.ts", "events-loop"]
+
+  # v4 slot-based daemon. Runs in parallel with the legacy runner above
+  # until the home page is swapped to view-state (Phase 4). Owns its own
+  # cursor file (state/v4-event-cursor.json) and outbox queue
+  # (/runner-state/outbox-v4/). POSTs Tier1/Slot/Meta diffs to the Pi
+  # ingest endpoint at PULSE_PI_BASE_URL.
+  runner-v4:
+    <<: *runner-base
+    container_name: gadgetbridge-runner-v4
+    environment:
+      <<: *runner-env
+      # outbox-v4 queue dir = $PULSE_STATE_ROOT/outbox-v4. Pin to the
+      # docker-named volume so a Syncthing replay never sees these files.
+      PULSE_STATE_ROOT: /runner-state
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    command: ["node_modules/.bin/tsx", "src/index.ts", "v4-daemon", "--tick=60"]
+
+volumes:
+  runner-state:
+    name: gadgetbridge-runner-state

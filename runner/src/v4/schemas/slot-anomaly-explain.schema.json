@@ -1,0 +1,65 @@
+{
+  "$id": "slot-anomaly-explain.schema.json",
+  "title": "AnomalyExplainPayload",
+  "description": "User-triggered anomaly explanation. Reads tier1.context.anomalies_today + relevant raw observation details. One SlotEntry per observation_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "what_happened",
+    "likely_drivers",
+    "what_to_watch",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "anomaly-explain/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "what_happened": {
+      "type": ["string", "null"],
+      "description": "Plain-language description of the anomaly itself. Must cite the metric value + threshold."
+    },
+    "likely_drivers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "driver", "evidence", "weight"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "driver": { "type": "string", "minLength": 4, "maxLength": 80 },
+          "evidence": { "type": "string", "minLength": 8, "maxLength": 200 },
+          "weight": { "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "what_to_watch": {
+      "type": ["string", "null"],
+      "maxLength": 200,
+      "description": "Short prompt: what to check / monitor going forward."
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

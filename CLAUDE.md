@@ -131,6 +131,32 @@ UI: Tailwind v4 (`postcss.config.mjs`), `next-themes`, `motion`, Recharts, Radix
 
 On-demand LLM routes (`/api/explain-anomaly`, `/api/ingest-screenshot`) need `OLLAMA_URL` to point at the Mac. The Pi cannot serve them without it.
 
+## v4 (in-flight rework — slot pipeline + view-state)
+
+`runner/src/v4/` is the in-progress replacement for v2/v3. Slot-based pre-compute (5 fixed daily slots + 1 weekly + 2 event slots), Pi single-writer view_state aggregator, Mac→Pi HTTP outbox, browser SSE. v4 coexists with v2/v3 — neither is deleted yet.
+
+Key entry points:
+- `runner/src/index.ts` → command `v4-daemon [--tick=60]` starts `startV4Daemon()` (60s tick + chokidar event derivation + SIGINT/SIGTERM shutdown).
+- `runner/src/v4/scheduler/daemon.ts` — `SchedulerDaemon.tick()` builds Tier1, decays statuses, picks due slots (topo-sorted by `depends_on`), dispatches each, submits diffs through the outbox.
+- `runner/src/v4/scheduler/event-watcher.ts` — pure DB-delta → `BumpEvent` derivation, cursor in `state/v4-event-cursor.json` (separate from v3's `state/event-cursor.json`).
+- `runner/src/v4/transport/outbox.ts` — Mac→Pi HTTP POST with CAS retry + disk-backed queue.
+- `app/api/ingest/view/[date]/route.ts` — Pi-side ingest. POST `{kind, ...diff}` → `ViewStateWriter.applyX`. 409 on `VersionConflictError`.
+- `app/api/view/[date]/route.ts` + `/sse` + `/retry/[slot_id]` — UI read path.
+- `lib/view-state/{fetcher,context}.tsx` — SSR loader + `ViewStateProvider` (SSE subscription, `retrySlot()`).
+- `components/view/*` + `components/slots/*Body.tsx` — slot rendering layer.
+
+Routing: `defaultViewRoot()` in `runner/src/v4/view-state/writer.ts` resolves view tree as `PULSE_VIEW_ROOT > INSIGHTS_ROOT/view > PULSE_ROOT/insights/view > ./insights/view`.
+
+Hard rules carried over: view_state is **Pi single-writer**; Mac never writes it directly. CAS via `expected_version` field on every diff. Atomic-rename via staging file. No fallback walks across date dirs — `view/<scope>/<key>.json` is canonical.
+
+Working surfaces today:
+- `/v4?d=YYYY-MM-DD` — parallel home renders five fixed daily slots end-to-end against a seeded `view_state.json`.
+- `GET /api/view/<key>` + `GET /api/view/<key>/sse` + `POST /api/view/<key>/retry/<slot_id>`.
+
+Not yet wired: home page `/` swap, drill page rewrites, post-workout/anomaly_explain bodies, Phase 4 deletes (v2/v3 still live in production until v4 daemon proves stable).
+
+See `docs/wip/V4_MIGRATION.md` for the full phase plan.
+
 ## v3 (work in progress)
 
 `runner/src/v3/` is an in-flight rework using a use-case prompt pattern: per-domain prompt-only manifests (no separate format spec), per-item reasoning, self-citing prose. Packagers (`packagers/{recovery,sleep,shared}.ts`), prompts (`prompts/{recovery,sleep,activity,synthesis}.ts`), and JSON Schemas (`schemas/*.schema.json`). Not yet wired into the dashboard. Don't refactor v3 alongside v2 changes unless explicitly asked.

@@ -1,0 +1,64 @@
+{
+  "$id": "slot-midday-check.schema.json",
+  "title": "MiddayCheckPayload",
+  "description": "Mid-day check-in (~13:00 local). Reads morning_briefing + tier1.kpis_today. Surfaces plan execution status, light course-correction.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "status",
+    "course_correction",
+    "next_window",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "midday-check/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasoning", "label", "on_track"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "label": { "enum": ["on_track", "behind", "ahead", "deviated", "no_signal"] },
+        "on_track": { "type": "boolean" }
+      }
+    },
+    "course_correction": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reasoning", "anchor", "tiny", "why"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+        "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+        "why": { "type": "string", "minLength": 8 }
+      }
+    },
+    "next_window": {
+      "type": ["string", "null"],
+      "maxLength": 200,
+      "description": "What to watch / aim for between now and evening_review (~19:00)."
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

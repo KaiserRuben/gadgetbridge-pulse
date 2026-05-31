@@ -1,0 +1,151 @@
+{
+  "$id": "slot-entry.schema.json",
+  "title": "SlotEntry",
+  "description": "Universal envelope around any slot's payload. Carries the time anchor (scheduled_for), the compute receipt (computed_at + computed_by), the status, and audit info. Payload is slot-specific and validated against its own schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "slot_id",
+    "status",
+    "scheduled_for",
+    "ttl_ms",
+    "computed_at",
+    "computed_by",
+    "payload",
+    "inputs_used",
+    "error",
+    "degraded_reason",
+    "request_count",
+    "version"
+  ],
+  "properties": {
+    "slot_id": {
+      "type": "string",
+      "enum": [
+        "night_review",
+        "morning_briefing",
+        "midday_check",
+        "evening_review",
+        "day_synthesis",
+        "post_workout",
+        "anomaly_explain",
+        "week_synthesis"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "computing",
+        "fresh",
+        "aging",
+        "stale",
+        "missed",
+        "errored",
+        "abstained",
+        "degraded"
+      ],
+      "description": "scheduled = future, not yet computed. computing = worker claimed. fresh = computed < ttl/3. aging = computed within ttl. stale = past ttl, still rendered with warning. missed = scheduled_for + ttl past, no compute attempt. errored = last attempt failed, retry_after_ms set. abstained = intentional skip with reason. degraded = computed but with missing prior slot input."
+    },
+    "scheduled_for": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the slot SHOULD have been computed by. Set by scheduler/calendar.ts. Bumped forward by event hooks (sleep_complete bumps night_review.scheduled_for to event time)."
+    },
+    "ttl_ms": {
+      "type": "integer",
+      "minimum": 60000,
+      "description": "Time after scheduled_for during which the slot stays fresh→aging. Past ttl_ms the slot flips to stale. Per-slot constant; written here for client convenience."
+    },
+    "computed_at": {
+      "anyOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "computed_by": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "slot_version", "prompt_version"],
+          "properties": {
+            "model": { "type": "string" },
+            "slot_version": { "type": "string" },
+            "prompt_version": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "payload": {
+      "description": "Slot-specific JSON. Validated against the per-slot payload schema in v4/schemas/slot-<id>.schema.json. Null when status ∈ {scheduled, computing, missed, errored} and no prior payload exists."
+    },
+    "inputs_used": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["prior_slot_refs", "data_window", "facts_hash"],
+          "properties": {
+            "prior_slot_refs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["slot_id", "scheduled_for", "computed_at"],
+                "properties": {
+                  "slot_id": { "type": "string" },
+                  "scheduled_for": { "type": "string", "format": "date-time" },
+                  "computed_at": { "type": "string", "format": "date-time" }
+                }
+              }
+            },
+            "data_window": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["from", "to"],
+              "properties": {
+                "from": { "type": "string", "format": "date-time" },
+                "to": { "type": "string", "format": "date-time" }
+              }
+            },
+            "facts_hash": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "retry_after_ms": { "type": "integer", "minimum": 0 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "degraded_reason": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ]
+    },
+    "request_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many times this slot has been (re)computed for this period. Increments on every release."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic version of this SlotEntry. Bumped on every atomic write. Used for CAS by the Pi writer when merging diffs."
+    }
+  }
+}

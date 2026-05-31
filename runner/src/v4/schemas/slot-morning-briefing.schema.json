@@ -1,0 +1,72 @@
+{
+  "$id": "slot-morning-briefing.schema.json",
+  "title": "MorningBriefingPayload",
+  "description": "Output of `morning_briefing`. Sets tone for the day by combining last night's review (prior) with today's plan + anomalies (tier1). 0-3 actionable suggestions for the morning/day. No KPI block — uses tier1 + night_review.kpis instead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "incomplete",
+    "abstain",
+    "abstain_reason",
+    "headline",
+    "summary_short",
+    "summary_long",
+    "focus_today",
+    "plan_adherence",
+    "suggestions_today",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "morning-briefing/v1" },
+    "language": { "enum": ["de", "en"] },
+    "incomplete": { "type": "boolean" },
+    "abstain": { "type": "boolean" },
+    "abstain_reason": { "type": ["string", "null"] },
+    "headline": { "type": ["string", "null"], "maxLength": 80 },
+    "summary_short": { "type": ["string", "null"], "maxLength": 120 },
+    "summary_long": { "type": ["string", "null"] },
+    "focus_today": {
+      "type": ["string", "null"],
+      "maxLength": 200,
+      "description": "One sentence framing today's priority based on recovery + plan."
+    },
+    "plan_adherence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasoning", "recommendation"],
+      "properties": {
+        "status": { "enum": ["proceed", "modify", "skip", "no_plan"] },
+        "reasoning": { "type": "string", "minLength": 20 },
+        "recommendation": { "type": ["string", "null"] }
+      }
+    },
+    "suggestions_today": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reasoning", "anchor", "tiny", "why", "horizon"],
+        "properties": {
+          "reasoning": { "type": "string", "minLength": 20 },
+          "anchor": { "type": "string", "minLength": 4, "maxLength": 60 },
+          "tiny": { "type": "string", "minLength": 4, "maxLength": 80 },
+          "why": { "type": "string", "minLength": 8 },
+          "horizon": { "enum": ["now", "morning", "today"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reasoning"],
+      "properties": {
+        "reasoning": { "type": "string", "minLength": 20 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

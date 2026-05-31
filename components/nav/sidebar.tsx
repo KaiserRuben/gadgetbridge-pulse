@@ -12,7 +12,7 @@ export function Sidebar({ alarmCount = 0 }: { alarmCount?: number }) {
 
   return (
     <aside className="hidden lg:flex flex-col gap-6 sticky top-0 h-dvh w-[228px] shrink-0 px-4 py-6 border-r border-[var(--color-border)] bg-[var(--color-bg)]/60 backdrop-blur-sm">
-      <Link href="/" className="flex items-center gap-2 px-2 group">
+      <Link href="/v4" className="flex items-center gap-2 px-2 group">
         <div className="relative size-7 grid place-items-center rounded-md bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)]">
           <Glyph name="Sparkles" size={14} strokeWidth={2.25} className="text-white" />
         </div>

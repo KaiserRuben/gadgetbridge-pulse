@@ -15,7 +15,7 @@ export function Topbar({ alarmCount = 0 }: { alarmCount?: number }) {
   // The browser's back affordance is hidden inside an installed PWA. Show a
   // chevron only when `display-mode: standalone` matches and we're past the
   // root — so we don't render a back arrow on `/` itself.
-  const showBack = isStandalone && pathname !== "/";
+  const showBack = isStandalone && pathname !== "/" && pathname !== "/v4";
 
   return (
     <div
@@ -33,7 +33,7 @@ export function Topbar({ alarmCount = 0 }: { alarmCount?: number }) {
             <Glyph name="ChevronLeft" size={18} />
           </button>
         )}
-        <Link href="/" className="lg:hidden flex items-center gap-2 font-semibold tracking-tight">
+        <Link href="/v4" className="lg:hidden flex items-center gap-2 font-semibold tracking-tight">
           <span className="size-6 rounded-md bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] grid place-items-center">
             <Glyph name="Sparkles" size={12} strokeWidth={2.25} className="text-white" />
           </span>
@@ -103,9 +103,10 @@ function useStandalone(): boolean {
 }
 
 function pathToCrumb(pathname: string): { section: string; detail?: string } {
-  if (pathname === "/") return { section: "Home" };
+  if (pathname === "/" || pathname === "/v4") return { section: "Home" };
   const seg = pathname.split("/").filter(Boolean);
   const map: Record<string, string> = {
+    v4: "Home",
     day: "Tag",
     sleep: "Schlaf",
     heart: "Herz",

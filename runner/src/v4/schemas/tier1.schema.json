@@ -1,0 +1,152 @@
+{
+  "$id": "tier1.schema.json",
+  "title": "Tier1",
+  "description": "Deterministic, regenerated every 60s by tier1/refresher.ts. No LLM. Pure functions of Gadgetbridge.db + PULSE_FACTS + user-input state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["facts_now", "kpis_today", "kpis_14d", "context", "computed_at"],
+  "properties": {
+    "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this tier1 block was assembled. UI compares against current wall clock to surface 'as-of' age."
+    },
+    "facts_now": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["now_ms", "last_db_sample_at", "data_lag_min", "sleeping_in_progress", "last_workout_end_at", "hr_now"],
+      "properties": {
+        "now_ms": { "type": "integer" },
+        "last_db_sample_at": { "anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}] },
+        "data_lag_min": { "anyOf": [{"type": "integer"}, {"type": "null"}], "description": "Minutes between now and last_db_sample. Null when no data ever." },
+        "sleeping_in_progress": { "type": "boolean", "description": "True when most recent sleep_state_sample row is mid-night and WAKEUP_TIME is in future or null." },
+        "last_workout_end_at": { "anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}] },
+        "hr_now": { "anyOf": [{"type": "integer", "minimum": 0, "maximum": 250}, {"type": "null"}], "description": "Most recent HR sample within last 5 min." }
+      }
+    },
+    "kpis_today": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tst_min", "sleep_eff_pct", "rmssd_ms", "rhr_sleep_bpm", "rhr_day_bpm", "steps", "active_kcal", "stress_mean", "day_score", "workouts"],
+      "properties": {
+        "tst_min": { "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}] },
+        "sleep_eff_pct": { "anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "null"}] },
+        "rmssd_ms": { "anyOf": [{"type": "number", "minimum": 0}, {"type": "null"}] },
+        "rhr_sleep_bpm": { "anyOf": [{"type": "integer", "minimum": 0, "maximum": 250}, {"type": "null"}] },
+        "rhr_day_bpm": { "anyOf": [{"type": "integer", "minimum": 0, "maximum": 250}, {"type": "null"}] },
+        "steps": { "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}] },
+        "active_kcal": { "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}], "description": "Firmware-derived active kcal (firmware_unit / 1000), BMR excluded." },
+        "stress_mean": { "anyOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "null"}] },
+        "day_score": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "band", "reasoning"],
+          "properties": {
+            "value": { "anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}] },
+            "band": { "anyOf": [{"enum": ["above_usual", "below_usual", "steady"]}, {"type": "null"}] },
+            "reasoning": { "anyOf": [{"type": "string"}, {"type": "null"}], "description": "Deterministic short rationale (max ~120 chars). Not LLM output." }
+          }
+        },
+        "workouts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ts_start_iso", "ts_end_iso", "kind", "duration_min", "distance_m", "active_kcal", "workout_load", "name"],
+            "properties": {
+              "ts_start_iso": { "type": "string", "format": "date-time" },
+              "ts_end_iso": { "type": "string", "format": "date-time" },
+              "kind": { "type": "integer" },
+              "duration_min": { "type": "integer", "minimum": 0 },
+              "distance_m": { "anyOf": [{"type": "number", "minimum": 0}, {"type": "null"}] },
+              "active_kcal": { "anyOf": [{"type": "number", "minimum": 0}, {"type": "null"}] },
+              "workout_load": { "anyOf": [{"type": "number"}, {"type": "null"}] },
+              "name": { "anyOf": [{"type": "string"}, {"type": "null"}] }
+            }
+          }
+        }
+      }
+    },
+    "kpis_14d": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sleep_quality_series", "autonomic_balance_series", "volume_load_series", "day_score_series"],
+      "description": "Rolling 14-day series for sparklines. Each Point = { date, value }. value=null for gap days kept so date axis stays aligned.",
+      "properties": {
+        "sleep_quality_series": { "$ref": "#/definitions/PointSeries" },
+        "autonomic_balance_series": { "$ref": "#/definitions/PointSeries" },
+        "volume_load_series": { "$ref": "#/definitions/PointSeries" },
+        "day_score_series": { "$ref": "#/definitions/PointSeries" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["day_of_week", "is_weekend", "plan_session_today", "pain_flags_active", "anomalies_today"],
+      "properties": {
+        "day_of_week": { "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] },
+        "is_weekend": { "type": "boolean" },
+        "plan_session_today": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["template_id", "kind", "intensity", "duration_min"],
+              "properties": {
+                "template_id": { "type": "string" },
+                "kind": { "type": "string" },
+                "intensity": { "enum": ["recovery", "easy", "moderate", "hard", "max"] },
+                "duration_min": { "type": "integer" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "pain_flags_active": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["region", "severity", "set_at"],
+            "properties": {
+              "region": { "type": "string" },
+              "severity": { "type": "integer", "minimum": 0, "maximum": 10 },
+              "set_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "anomalies_today": {
+          "type": "array",
+          "description": "S1 safety observations from deterministic rules (replaces v2 stage1-rules S1 tier). Always rendered, never gated by LLM.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "severity", "headline_de", "message_de", "metric", "value"],
+            "properties": {
+              "code": { "type": "string" },
+              "severity": { "enum": ["info", "warn", "critical"] },
+              "headline_de": { "type": "string" },
+              "message_de": { "type": "string" },
+              "metric": { "type": "string" },
+              "value": { "anyOf": [{"type": "number"}, {"type": "null"}] }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "PointSeries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "value"],
+        "properties": {
+          "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "value": { "anyOf": [{"type": "number"}, {"type": "null"}] }
+        }
+      }
+    }
+  }
+}
