@@ -7,14 +7,20 @@ import type { SlotId } from "@/runner/v4/types.ts";
 
 export function SlotRetryButton({
   slot_id,
+  event_id,
+  observation_id,
   label = "Neu berechnen",
   className,
 }: {
   slot_id: SlotId;
+  /** Set for event slots — routes to /api/view/<date>/event/<slot_id>. */
+  event_id?: string;
+  /** Optional observation context for anomaly_explain retries. */
+  observation_id?: string;
   label?: string;
   className?: string;
 }) {
-  const { retrySlot } = useViewState();
+  const { period_key, retrySlot } = useViewState();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +29,24 @@ export function SlotRetryButton({
     setBusy(true);
     setError(null);
     try {
-      await retrySlot(slot_id);
+      if (event_id) {
+        const body: Record<string, string> = { event_id };
+        if (observation_id) body.observation_id = observation_id;
+        const r = await fetch(
+          `/api/view/${period_key}/event/${slot_id}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        if (!r.ok) {
+          const b = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(b.error ?? `retry failed (${r.status})`);
+        }
+      } else {
+        await retrySlot(slot_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
