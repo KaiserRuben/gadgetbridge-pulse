@@ -141,10 +141,15 @@ async function runTick(daemon: SchedulerDaemon): Promise<void> {
   const ok = report.slots_succeeded.length;
   const err = report.slots_errored.length;
   const disp = report.slots_dispatched.length;
+  const evDisp = report.event_slots_dispatched.length;
+  const evOk = report.event_slots_succeeded.length;
+  const evErr = report.event_slots_errored.length;
   log.info(
     "v4-daemon",
     `tick ${report.period_key}: tier1=${report.tier1_submitted} ` +
-      `dispatched=${disp} ok=${ok} err=${err} outbox.drained=${report.outbox_drained} ` +
+      `dispatched=${disp} ok=${ok} err=${err} ` +
+      `event_disp=${evDisp} event_ok=${evOk} event_err=${evErr} ` +
+      `outbox.drained=${report.outbox_drained} ` +
       `outbox.queued=${report.outbox_failures} ms=${report.ms_total}`,
   );
   for (const note of report.notes) log.info("v4-daemon", `  ${note}`);
@@ -166,7 +171,7 @@ async function drainEvents(daemon: SchedulerDaemon): Promise<void> {
   for (const evt of events) {
     try {
       // All v4 events are daily-scoped today. Weekly slots react via day_end.
-      const touched = await daemon.applyBumpEvent(evt.event, "daily", evt.period_key);
+      const touched = await daemon.applyBumpEvent(evt.event, "daily", evt.period_key, evt.payload);
       log.info(
         "v4-daemon",
         `applied ${evt.event} → ${evt.period_key} (touched ${touched.length})`,
