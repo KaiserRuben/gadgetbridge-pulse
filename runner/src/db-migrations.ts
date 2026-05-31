@@ -660,6 +660,125 @@ const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE PULSE_MEAL_COMPONENT ADD COLUMN provenance_json TEXT;
     `,
   },
+  {
+    id: "M015_push_notifications",
+    sql: `
+      -- ── Push dispatch log ────────────────────────────────────────────────
+      -- One row per notify intent the Pi processed: every dispatch attempt
+      -- and every suppression. The log drives three things:
+      --   1. Dedupe: gate.ts checks dedupe_key in the last hour before send.
+      --   2. Budget: gate.ts counts result='sent' rows in last 24h vs cap.
+      --   3. Settings transparency: /settings/notifications shows the last
+      --      N rows so the user knows what fired (and what was suppressed).
+      CREATE TABLE IF NOT EXISTS PULSE_PUSH_LOG (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sent_at INTEGER NOT NULL,
+        topic TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL,
+        result TEXT NOT NULL,
+        sent_count INTEGER NOT NULL DEFAULT 0,
+        pruned_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        suppression_reason TEXT,
+        payload_size INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_log_dedupe
+        ON PULSE_PUSH_LOG(dedupe_key, sent_at);
+      CREATE INDEX IF NOT EXISTS idx_push_log_sent
+        ON PULSE_PUSH_LOG(sent_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_push_log_topic_sent
+        ON PULSE_PUSH_LOG(topic, sent_at DESC);
+
+      -- ── Push prefs (per-topic toggles, quiet hours override, budget) ────
+      -- Single-table KV so a future topic addition needs no schema change.
+      -- Reads fall back to defaults defined in lib/notifications/prefs.ts.
+      CREATE TABLE IF NOT EXISTS PULSE_PUSH_PREFS (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
+  {
+    id: "M016_pulse_run",
+    sql: `
+      -- ── Runner observability: per-job run table ──────────────────────────
+      -- Captures every stage / cluster / LLM call the runner executes so the
+      -- dashboard can show what is happening NOW (no log-scraping required).
+      --
+      --   run_id            stable id minted by the runner. Format:
+      --                     "<cluster>:<key>:<attempt>:<msStart6>". Parent
+      --                     stages and child LLM calls share the prefix so
+      --                     parent_run_id rolls up sub-spans (e.g. v3:sleep
+      --                     parent vs ollama child).
+      --   cluster           cluster or pipeline name (e.g. "v2", "v3:sleep",
+      --                     "nutrition", "ollama").
+      --   key               period key (YYYY-MM-DD, weekly, meal id, …).
+      --   scope             "daily" | "weekly" | "instant" (for LLM sub-spans).
+      --   stage             optional fine-grained step inside a cluster
+      --                     ("stage4_prose", "extract", "prose", "schema_check").
+      --   attempt           1-based, lifts on retry. Lets the dashboard show
+      --                     "attempt 2/3" without re-parsing log lines.
+      --   status            queued | running | ok | fail | orphaned. queued
+      --                     means the entry exists but the runner hasn't
+      --                     popped it yet; orphaned is set by the boot
+      --                     recovery sweep for runs whose heartbeat lapsed.
+      --   started_at        ISO-ms when the runner picked the job up. NULL
+      --                     for queued rows.
+      --   last_heartbeat_at ISO-ms updated by the runner every ~30s while in
+      --                     flight. Combined with started_at the dashboard
+      --                     spots wedged calls without re-running them.
+      --   finished_at       ISO-ms when the run resolved (ok or fail).
+      --   elapsed_ms        finished_at - started_at, mirrored for cheap p50/p95.
+      --   prompt_chars      cumulative system+user prompt size for LLM runs.
+      --   eval_tokens       Ollama eval_count tally.
+      --   error_text        short error reason on fail rows.
+      --   parent_run_id     foreign-key to another row's run_id. Lets one
+      --                     parent (e.g. cluster "v3:sleep") group multiple
+      --                     children (LLM attempts + validate spans).
+      CREATE TABLE IF NOT EXISTS PULSE_RUN (
+        run_id            TEXT PRIMARY KEY,
+        cluster           TEXT NOT NULL,
+        key               TEXT NOT NULL,
+        scope             TEXT NOT NULL DEFAULT 'daily',
+        stage             TEXT,
+        attempt           INTEGER NOT NULL DEFAULT 1,
+        status            TEXT NOT NULL CHECK (status IN ('queued','running','ok','fail','orphaned')),
+        started_at        TEXT,
+        last_heartbeat_at TEXT,
+        finished_at       TEXT,
+        elapsed_ms        INTEGER,
+        prompt_chars      INTEGER,
+        eval_tokens       INTEGER,
+        error_text        TEXT,
+        parent_run_id     TEXT,
+        meta_json         TEXT,
+        host              TEXT,
+        created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      -- Live-view index: "what is running right now?" — narrow partial covers
+      -- the dashboard's primary query.
+      CREATE INDEX IF NOT EXISTS idx_pulse_run_status
+        ON PULSE_RUN(status, started_at DESC)
+        WHERE status IN ('queued','running');
+
+      -- Recent-history index for the completed/failed scroll. Bounded scan,
+      -- cluster filter optional. status here is the FULL set so the same
+      -- index also covers per-cluster failure drilldowns.
+      CREATE INDEX IF NOT EXISTS idx_pulse_run_recent
+        ON PULSE_RUN(cluster, status, finished_at DESC);
+
+      -- Parent rollup index — children join up to the parent run row.
+      CREATE INDEX IF NOT EXISTS idx_pulse_run_parent
+        ON PULSE_RUN(parent_run_id)
+        WHERE parent_run_id IS NOT NULL;
+    `,
+  },
 ];
 
 function ensureMigrationsTable(db: Database.Database): void {
