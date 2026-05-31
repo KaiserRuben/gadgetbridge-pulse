@@ -36,10 +36,17 @@ import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { DayNavigator } from "@/components/nav/day-navigator";
 import { fmtInt } from "@/lib/format";
+import { ConsentCard } from "@/components/notifications/consent-card";
+import {
+  maybePromoteToEligible,
+  shouldShowSoftCard,
+} from "@/lib/notifications/consent";
+import { isEngagementCriteriaMet } from "@/lib/notifications/eligible";
+import { acceptSoftConsent, declineSoftConsent } from "./_consent-actions";
 // Nutrition feature flag — flip to `false` (or delete the import + tile) to
 // remove the home-page intake ring without touching anything else.
 import { IntakeRing } from "@/components/nutrition/IntakeRing";
-import { effectiveTarget, getMealsForDate, getTargets, getTodayDate } from "@/lib/nutrition/data";
+import { dayTotals, effectiveTarget, getMealsForDate, getTargets, getTodayDate } from "@/lib/nutrition/data";
 const FEATURE_NUTRITION_HOME = true;
 
 const TZ = "Europe/Berlin";
@@ -292,8 +299,21 @@ export default async function HomePage({
     });
   }
 
+  // Consent card visibility: engagement gate (≥1 finalized day + ≥1
+  // classified meal) promotes ASK_NEVER → ELIGIBLE_SOFT. Then the state
+  // machine decides whether to show — ELIGIBLE_SOFT yes, SOFT_DECLINED
+  // after backoff yes, everything else no.
+  const consentState = maybePromoteToEligible(isEngagementCriteriaMet());
+  const showConsentCard = shouldShowSoftCard(consentState);
+
   return (
     <div className="flex flex-col gap-4 md:gap-5">
+      {showConsentCard && (
+        <ConsentCard
+          onAccept={acceptSoftConsent}
+          onDecline={declineSoftConsent}
+        />
+      )}
       {/* ── 1. Day navigator + 14-day strip (above the fold) ──────────── */}
       <DayNavigator date={todayLatest} daysByDate={daysByDate} hideOnDesktop />
       <div className="hidden md:flex items-center justify-between gap-3">
@@ -306,7 +326,7 @@ export default async function HomePage({
 
       {/* ── 2. KPI grid lifted to top — the actual data ──────────────── */}
       <Section
-        eyebrow="Heute"
+        eyebrow={heroDate === todayLatest ? "Heute" : "Letzte Analyse"}
         title={heroDateLabelDe}
         trailing={
           <Link
@@ -374,15 +394,13 @@ export default async function HomePage({
         {FEATURE_NUTRITION_HOME && (() => {
           const today = getTodayDate();
           const todayMeals = getMealsForDate(today);
-          const todayTotals = todayMeals.reduce(
-            (acc, m) => ({
-              kcal: acc.kcal + m.totals.kcal,
-              protein_g: acc.protein_g + m.totals.protein_g,
-              carbs_g: acc.carbs_g + m.totals.carbs_g,
-              fat_g: acc.fat_g + m.totals.fat_g,
-            }),
-            { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
-          );
+          const totalsRaw = dayTotals(today);
+          const todayTotals = {
+            kcal: totalsRaw.kcal ?? 0,
+            protein_g: totalsRaw.protein_g ?? 0,
+            carbs_g: totalsRaw.carbs_g ?? 0,
+            fat_g: totalsRaw.fat_g ?? 0,
+          };
           const targets = getTargets();
           const kcalTarget = effectiveTarget(targets.rows.find((r) => r.key === "kcal")!);
           const proteinTarget = effectiveTarget(targets.rows.find((r) => r.key === "protein_g")!);

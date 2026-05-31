@@ -61,22 +61,36 @@ self.addEventListener("fetch", (event) => {
 // ── Web Push handlers ────────────────────────────────────────────────────────
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Pulse", body: "Update verfügbar", url: "/" };
+  // Silent drop on malformed payloads — design rule. The old behaviour
+  // surfaced a generic "Update verfügbar" toast which burns trust faster
+  // than not notifying at all.
+  if (!event.data) return;
+  let data;
   try {
-    if (event.data) {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    }
+    data = event.data.json();
   } catch (_) {
-    // ignore malformed payloads
+    return;
   }
+  if (!data || typeof data.title !== "string" || typeof data.body !== "string") {
+    return;
+  }
+
+  // Low-priority topics do NOT renotify on tag collision (silent replace).
+  // High/safety stays loud. Topic→priority bucket is fixed here so the SW
+  // doesn't need to know about the prefs table.
+  const LOUD_TOPICS = new Set(["safety_anomaly"]);
+  const topic = typeof data.topic === "string" ? data.topic : "pulse";
+  const renotify = LOUD_TOPICS.has(topic);
+
   const options = {
     body: data.body,
     icon: "/icon-192.png",
     badge: "/icon-192.png",
-    data: { url: data.url ?? "/", topic: data.topic ?? null },
-    tag: data.topic ?? "pulse",
-    renotify: true,
+    data: { url: typeof data.url === "string" ? data.url : "/", topic },
+    // Prefer dedupe-keyed tag from notifier when present; falls back to
+    // topic so legacy callers without `tag` still collapse per-topic.
+    tag: typeof data.tag === "string" ? data.tag : topic,
+    renotify,
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });

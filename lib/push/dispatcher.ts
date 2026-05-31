@@ -15,12 +15,19 @@ function configure(): void {
   configured = true;
 }
 
+/**
+ * Topic enum is the canonical PushTopic union for everything below the
+ * notifier funnel. It mirrors lib/notifications/types.ts → NotifyTopic so
+ * the two stay in lock-step; if a topic is added, both files need an entry.
+ */
 export type PushTopic =
-  | "morning_recap"
-  | "post_workout"
-  | "evening_brief"
-  | "verdict_shift"
-  | "contradiction"
+  | "meal_classified"
+  | "day_finalized"
+  | "sleep_complete"
+  | "workout_complete"
+  | "pattern_detected"
+  | "safety_anomaly"
+  | "coach_quote"
   | "test";
 
 export interface PushPayload {
@@ -28,6 +35,19 @@ export interface PushPayload {
   body: string;
   url: string;
   topic: PushTopic;
+  /**
+   * Service-worker `tag` (collapse-key). Repeat sends with the same tag
+   * replace the previous notification instead of stacking. Defaults to
+   * `topic` so each topic naturally collapses; the notifier passes its
+   * stable `dedupeKey` so e.g. two "day_finalized" pushes for different
+   * dates remain distinct.
+   */
+  tag?: string;
+  /**
+   * Web-push TTL in seconds. Default 3600 (1h). 0 = best-effort one-shot
+   * (push services may drop immediately if device offline).
+   */
+  ttlSeconds?: number;
 }
 
 export interface DispatchResult {
@@ -47,6 +67,18 @@ export async function dispatch(payload: PushPayload): Promise<DispatchResult> {
   let failed = 0;
   let pruned = 0;
 
+  // tag defaults to the topic so historical "morning_recap" etc. behaviour
+  // is unchanged when callers don't pass a dedupe-keyed tag.
+  const wireBody = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+    topic: payload.topic,
+    tag: payload.tag ?? payload.topic,
+  });
+  const ttl =
+    typeof payload.ttlSeconds === "number" ? payload.ttlSeconds : 60 * 60;
+
   await Promise.all(
     subs.map(async (sub: PushSubscriptionRecord) => {
       const subscription = {
@@ -54,9 +86,7 @@ export async function dispatch(payload: PushPayload): Promise<DispatchResult> {
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       };
       try {
-        await webPush.sendNotification(subscription, JSON.stringify(payload), {
-          TTL: 60 * 60, // 1h — payload represents a moment in time, drop if undelivered
-        });
+        await webPush.sendNotification(subscription, wireBody, { TTL: ttl });
         sent++;
       } catch (err) {
         const status = (err as { statusCode?: number })?.statusCode ?? 0;

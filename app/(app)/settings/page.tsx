@@ -29,7 +29,24 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-5 md:gap-6">
       <Section eyebrow="Einstellungen" title="Benachrichtigungen">
-        <PushSubscribe />
+        <div className="flex flex-col gap-3">
+          <PushSubscribe />
+          <Link href="/settings/notifications" className="block">
+            <Card hoverable>
+              <CardBody className="p-4 flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[0.9375rem] font-medium">
+                    Topics, Ruhezeiten, Tageslimit
+                  </span>
+                  <span className="text-caption text-muted">
+                    Welche Ereignisse benachrichtigen, wann ruhig bleiben, wie oft maximal — plus letzte Aktivität.
+                  </span>
+                </div>
+                <Glyph name="ChevronRight" className="text-muted shrink-0" />
+              </CardBody>
+            </Card>
+          </Link>
+        </div>
       </Section>
 
       <Section eyebrow="Einstellungen" title="KI-Verhalten">
