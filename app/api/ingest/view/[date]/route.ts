@@ -18,11 +18,17 @@
 
 import { NextResponse } from "next/server";
 
-import { detectScope, getWriter } from "@/lib/view-state/shared";
+import { maybeNotifySlotTransition } from "@/lib/push/v4-slot-notifier";
+import { detectScope, getReader, getWriter } from "@/lib/view-state/shared";
 import { VersionConflictError } from "@/runner/v4/view-state/writer.ts";
 import type {
   MetaDiff,
+  Scope,
   SlotDiff,
+  SlotEntry,
+  ViewState,
+  ViewStateDaily,
+  ViewStateWeekly,
   Tier1Diff,
 } from "@/runner/v4/types.ts";
 
@@ -78,9 +84,27 @@ export async function POST(
       case "tier1":
         next = await w.applyTier1(body as unknown as Tier1Diff);
         break;
-      case "slot":
-        next = await w.applySlot(body as unknown as SlotDiff);
+      case "slot": {
+        const slotDiff = body as unknown as SlotDiff;
+        const priorEntry = await readPriorSlotEntry(slotDiff);
+        next = await w.applySlot(slotDiff);
+        const newEntry = extractSlotEntry(next, slotDiff);
+        if (newEntry) {
+          void maybeNotifySlotTransition(
+            slotDiff.scope,
+            slotDiff.period_key,
+            slotDiff.slot_id,
+            slotDiff.event_id ?? null,
+            priorEntry,
+            newEntry,
+          ).catch((err) => {
+            console.error(
+              `[v4-push] unhandled err=${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+        }
         break;
+      }
       case "meta":
         next = await w.applyMeta(body as unknown as MetaDiff);
         break;
@@ -112,6 +136,31 @@ export async function POST(
       { status: 500 },
     );
   }
+}
+
+function extractSlotEntry(
+  view: ViewState,
+  diff: SlotDiff,
+): SlotEntry | null {
+  if (diff.slot_id === "post_workout" || diff.slot_id === "anomaly_explain") {
+    if (!diff.event_id) return null;
+    const list = (view as ViewStateDaily | ViewStateWeekly).events[
+      diff.slot_id
+    ] as Array<SlotEntry & { event_id: string }>;
+    return list.find((e) => e.event_id === diff.event_id) ?? null;
+  }
+  const slots = (view as ViewStateDaily | ViewStateWeekly).slots as unknown as
+    Record<string, SlotEntry>;
+  return slots[diff.slot_id] ?? null;
+}
+
+async function readPriorSlotEntry(
+  diff: SlotDiff,
+): Promise<SlotEntry | null> {
+  const scope: Scope = diff.scope;
+  const prior = await getReader().read(scope, diff.period_key);
+  if (!prior) return null;
+  return extractSlotEntry(prior, diff);
 }
 
 export async function GET(
