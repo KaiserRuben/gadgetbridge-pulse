@@ -14,10 +14,6 @@ import type {
   DayScoreResult,
 } from "@/lib/types/v3";
 import type {
-  MorningInsightPayload,
-  MorningLeverCard as MorningLeverCardType,
-} from "@/runner/clusters/morning_insight/types";
-import type {
   SynthesisV3Payload,
 } from "@/runner/clusters/synthesis_v3/types";
 
@@ -75,13 +71,6 @@ export async function loadTrainingPackage(date: string): Promise<unknown | null>
  * dashboard re-exports the cluster types here so the legacy reader
  * pathway + the new JobCell pathway speak the same TS shape.
  */
-export type MorningInsight = MorningInsightPayload;
-export type MorningLeverCard = MorningLeverCardType;
-
-export async function loadMorningInsight(date: string): Promise<MorningInsight | null> {
-  return readJson<MorningInsight>(daily(date, "morning_insight.json"));
-}
-
 export async function loadMorningPackage(date: string): Promise<unknown | null> {
   return readJson<unknown>(daily(date, "morning_package.json"));
 }
