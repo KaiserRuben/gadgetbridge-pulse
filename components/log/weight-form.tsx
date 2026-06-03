@@ -41,31 +41,35 @@ export function WeightForm({
           <input
             ref={inputRef}
             name="weight_kg"
-            type="text"
+            type="number"
             inputMode="decimal"
+            step="0.1"
+            min="0"
             autoComplete="off"
             placeholder={defaultValue?.toFixed(1) ?? "0.0"}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             disabled={pending}
-            className="num text-display bg-transparent outline-none flex-1 min-w-0 placeholder:text-[var(--color-text-faint)]"
+            className="num text-display bg-transparent outline-none flex-1 min-w-0 placeholder:text-[var(--color-text-faint)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             style={{ caretColor: "var(--color-sleep)" }}
           />
-          <span className="text-subtle text-[1.25rem] num-mono">kg</span>
+          <span className="text-subtle num-mono text-[1.25rem]">kg</span>
         </div>
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="eyebrow">Körperfett (optional)</span>
-        <div className="relative flex items-baseline gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)]">
+        <div className="relative flex items-baseline gap-2 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-2">
           <input
             name="body_fat_pct"
-            type="text"
+            type="number"
             inputMode="decimal"
+            step="0.1"
+            min="0"
             autoComplete="off"
             placeholder="—"
             disabled={pending}
-            className="num text-[1.5rem] font-semibold bg-transparent outline-none flex-1 min-w-0 placeholder:text-[var(--color-text-faint)]"
+            className="num min-w-0 flex-1 bg-transparent text-[1.5rem] font-semibold outline-none placeholder:text-[var(--color-text-faint)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
           <span className="text-subtle num-mono">%</span>
         </div>
@@ -79,7 +83,7 @@ export function WeightForm({
           autoComplete="off"
           placeholder="z.B. nüchtern, Sonntag morgen"
           disabled={pending}
-          className="px-3 py-2 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)] outline-none text-[0.9375rem] focus:border-[var(--color-border-strong)]"
+          className="text-body rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-2 outline-none focus:border-[var(--color-border-strong)]"
         />
       </label>
 
@@ -87,7 +91,7 @@ export function WeightForm({
         <button
           type="submit"
           disabled={pending || !numericPreview}
-          className="flex-1 h-11 rounded-xl bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] text-white font-medium tracking-tight disabled:opacity-50 hover:brightness-110 transition-[filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] focus-visible:ring-[var(--color-sleep)]"
+          className="h-11 flex-1 rounded-[var(--radius-chip)] bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] font-medium tracking-tight text-white transition-[filter] hover:brightness-110 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-sleep)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
         >
           {pending ? "Speichere…" : "Speichern"}
         </button>

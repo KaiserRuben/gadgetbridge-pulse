@@ -41,7 +41,7 @@ export function FeelForm({
                 type="button"
                 onClick={() => setFeel(s.v)}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 px-2 py-3 rounded-2xl border bg-[var(--color-surface-2)]/40 transition-all",
+                  "flex flex-col items-center gap-1.5 rounded-[var(--radius-card)] border bg-[var(--color-surface-2)]/40 px-2 py-3 transition-all",
                   active ? "border-[var(--color-border-strong)] bg-[var(--color-surface-2)]" : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]/70",
                 )}
               >
@@ -69,14 +69,14 @@ export function FeelForm({
           type="text"
           placeholder="kurzer Kontext (optional)"
           disabled={pending}
-          className="px-3 py-2 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)] outline-none focus:border-[var(--color-border-strong)]"
+          className="rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-2 outline-none focus:border-[var(--color-border-strong)]"
         />
       </label>
 
       <button
         type="submit"
         disabled={pending || feel == null}
-        className="h-11 rounded-xl bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] text-white font-medium disabled:opacity-50 hover:brightness-110 transition-[filter]"
+        className="h-11 rounded-[var(--radius-chip)] bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
       >
         {pending ? "Speichere…" : "Speichern"}
       </button>

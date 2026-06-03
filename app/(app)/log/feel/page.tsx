@@ -1,43 +1,43 @@
 import "server-only";
-import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { readFeel } from "@/lib/feel";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { Glyph } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
 import { FeelForm } from "@/components/log/feel-form";
+import { FadeRise } from "@/components/motion/fade-rise";
 import { submitFeel } from "./actions";
 
 export default async function FeelPage() {
   noStore();
   const recent = readFeel(undefined, 8);
   return (
-    <div className="flex flex-col gap-6 max-w-[640px] mx-auto w-full">
-      <div className="flex items-center justify-between">
-        <Link href="/log" className="text-caption text-muted hover:text-[var(--color-text)] flex items-center gap-1">
-          <Glyph name="ChevronRight" size={14} className="rotate-180" />
-          Log
-        </Link>
-        <Eyebrow>Stimmung</Eyebrow>
-      </div>
+    <div className="mx-auto flex w-full max-w-[640px] flex-col gap-6">
+      <PageHeader
+        eyebrow="Log"
+        title="Stimmung"
+        back={{ href: "/log", label: "Log" }}
+      />
 
-      <Card glow="sleep">
-        <CardBody className="p-6 lg:p-8">
-          <FeelForm action={submitFeel} />
-        </CardBody>
-      </Card>
+      <FadeRise>
+        <Card glow="sleep">
+          <CardBody className="p-6 lg:p-8">
+            <FeelForm action={submitFeel} />
+          </CardBody>
+        </Card>
+      </FadeRise>
 
       {recent.length > 0 && (
         <Card variant="soft">
-          <CardBody className="p-5 flex flex-col gap-2">
+          <CardBody className="flex flex-col gap-2 p-5">
             <Eyebrow>Letzte Einträge</Eyebrow>
             <ul className="divide-y divide-[var(--color-border)]">
               {recent.map((r) => (
-                <li key={r.id} className="flex items-center justify-between py-2 text-[0.875rem]">
+                <li key={r.id} className="text-body flex items-center justify-between py-2">
                   <span className="num-mono text-caption">{fmt(r.ts_iso)}</span>
                   <Pill tone={r.feel >= 4 ? "up" : r.feel <= 2 ? "down" : "steady"} size="sm">{r.feel}</Pill>
-                  <span className="text-caption truncate flex-1 ml-3">{r.note}</span>
+                  <span className="text-caption ml-3 flex-1 truncate">{r.note}</span>
                 </li>
               ))}
             </ul>

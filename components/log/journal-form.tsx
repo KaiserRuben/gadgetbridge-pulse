@@ -26,7 +26,7 @@ export function JournalForm({
           placeholder="Was war heute…"
           rows={6}
           disabled={pending}
-          className="px-3 py-3 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)] outline-none focus:border-[var(--color-border-strong)] resize-none text-[0.9375rem] leading-snug"
+          className="text-body resize-none rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-3 leading-snug outline-none focus:border-[var(--color-border-strong)]"
         />
       </label>
 
@@ -40,7 +40,7 @@ export function JournalForm({
           max={5}
           placeholder="3"
           disabled={pending}
-          className="px-3 py-2 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)] outline-none focus:border-[var(--color-border-strong)] num-mono"
+          className="num-mono rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-2 outline-none focus:border-[var(--color-border-strong)]"
         />
       </label>
 
@@ -51,14 +51,14 @@ export function JournalForm({
           type="text"
           placeholder="laufen, kaffee, kopfschmerzen"
           disabled={pending}
-          className="px-3 py-2 rounded-xl bg-[var(--color-surface-2)]/60 border border-[var(--color-border)] outline-none focus:border-[var(--color-border-strong)]"
+          className="rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/60 px-3 py-2 outline-none focus:border-[var(--color-border-strong)]"
         />
       </label>
 
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-xl bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] text-white font-medium disabled:opacity-50 hover:brightness-110 transition-[filter]"
+        className="h-11 rounded-[var(--radius-chip)] bg-gradient-to-br from-[var(--color-sleep)] to-[var(--color-sleep-2)] font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
       >
         {pending ? "Speichere…" : "Speichern"}
       </button>
