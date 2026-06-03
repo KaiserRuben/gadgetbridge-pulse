@@ -1,134 +1,201 @@
 import "server-only";
-import { unstable_noStore as noStore } from "next/cache";
+
 import Link from "next/link";
 
-import { loadDaily, getLatestDailyDate } from "@/lib/insights";
-import { loadMorningInsight } from "@/lib/v3-loaders";
-import { addDays } from "@/lib/time";
-
-import { Section } from "@/components/ui/section";
+import { readViewState } from "@/lib/view-state/fetcher";
+import { addDays, todayKey } from "@/lib/time";
+import { PageHeader } from "@/components/ui/page-header";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { Card, CardBody } from "@/components/ui/card";
-import { EmptyStateCard } from "@/components/ui/empty-state";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { Glyph } from "@/components/ui/glyph";
-import { ArrowNavList } from "@/components/nav/arrow-nav-list";
-import { MorningInsightCell } from "@/components/domain/morning-insight-cell";
+import { Confidence } from "@/components/ui/confidence";
+import { SlotStatusPill } from "@/components/view/SlotStatusPill";
+import { CoachRetryButton } from "@/components/coach/coach-retry-button";
+import { friendlySlotError } from "@/components/slots/_friendly-error";
+import type { DaySynthesisPayload } from "@/runner/v4/slots/day-synthesis/types.ts";
+import type {
+  SlotEntry,
+  SlotStatus,
+  ViewStateDaily,
+} from "@/runner/v4/types.ts";
 
-export default async function CoachPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ date?: string }>;
-}) {
-  noStore();
-  const sp = await searchParams;
-  const latest = (await getLatestDailyDate()) ?? null;
-  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : latest;
+export const dynamic = "force-dynamic";
 
-  if (!date) return <ColdStart />;
+const PAYLOAD_STATUSES = new Set<SlotStatus>([
+  "fresh",
+  "aging",
+  "stale",
+  "degraded",
+]);
 
-  // Server-load the legacy morning_insight.json for the active date — used
-  // as DerivedCell `fallbackPayload` so first paint stays populated even
-  // before the JobCell row lands. The 14-day history list reads many days
-  // at once and stays server-rendered (out of scope for cluster wrapping).
-  const morningFallback = await loadMorningInsight(date);
+interface CoachRow {
+  date: string;
+  entry: SlotEntry<DaySynthesisPayload> | null;
+}
 
-  const last14 = await Promise.all(
-    Array.from({ length: 14 }, (_, i) => addDays(date, -i)).map(async (d) => {
-      const [dailyForDay, morningForDay] = await Promise.all([
-        loadDaily(d),
-        loadMorningInsight(d),
-      ]);
-      return { date: d, daily: dailyForDay, morning: morningForDay };
-    }),
+export default async function CoachPage(): Promise<React.JSX.Element> {
+  const today = todayKey();
+  const dates = Array.from({ length: 14 }, (_, i) => addDays(today, -i));
+  const views = await Promise.all(
+    dates.map((d) => readViewState(d).catch(() => null)),
   );
+  const rows: CoachRow[] = views.map((view, i) => ({
+    date: dates[i],
+    entry:
+      view && view.scope === "daily"
+        ? (view as ViewStateDaily).slots.day_synthesis ?? null
+        : null,
+  }));
 
   return (
-    <div className="flex flex-col gap-8">
-      <MorningInsightCell
-        periodKey={date}
-        fallbackPayload={morningFallback}
-        variant="full"
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Coach"
+        title="Coach"
+        sub="Tages-Synthese der letzten 14 Tage"
+        trailing={
+          <Link
+            href={`/day/${today}`}
+            className="inline-flex h-8 items-center rounded-[var(--radius-pill)] bg-[var(--color-surface-soft)] px-3 text-xs font-medium ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:bg-[var(--color-surface-hover)]"
+          >
+            Heute öffnen
+          </Link>
+        }
       />
 
-      <Section eyebrow="Verlauf" title="Letzte 14 Tage">
-        <Card variant="soft">
-          <CardBody className="p-3">
-            <div className="flex items-center gap-3 px-3 pb-2 text-caption text-muted">
-              <span className="w-[88px]">Datum</span>
-              <span className="flex-1">Headline</span>
-              <span className="hidden sm:inline">Karten</span>
-              <span className="w-[42px] text-right" title="Konfidenz der Tagesanalyse">Konfidenz</span>
-              <span className="w-[14px]" />
-            </div>
-            <ArrowNavList className="flex flex-col">
-              {last14.map((d) => {
-                const score =
-                  d.morning?.confidence?.value != null
-                    ? Math.round(d.morning.confidence.value * 100)
-                    : d.daily
-                      ? Math.round((d.daily.confidence?.value ?? 0) * 100)
-                      : null;
-                const cardCount = d.morning?.levers?.length ?? 0;
-                const active = d.date === date;
-                return (
-                  <li key={d.date}>
-                    <Link
-                      href={`/coach?date=${d.date}`}
-                      aria-current={active ? "page" : undefined}
-                      className={`relative flex items-center gap-3 px-3 h-11 rounded-xl outline-none transition-colors
-                        focus-visible:ring-2 focus-visible:ring-[var(--color-sleep)] focus-visible:bg-[var(--color-surface-2)]
-                        ${active
-                          ? "bg-[var(--color-surface-2)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-[var(--color-sleep)]"
-                          : "hover:bg-[var(--color-surface-2)]/50"}`}
-                    >
-                      <span className={`num-mono text-caption w-[88px] ${active ? "text-[var(--color-text)]" : ""}`}>
-                        {fmtShort(d.date)}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-[0.875rem] truncate block ${active ? "font-medium" : ""}`}>
-                          {d.morning?.headline ?? d.daily?.headline ?? "—"}
-                        </span>
-                      </div>
-                      <span className="text-caption hidden sm:inline" title="Anzahl Hebel-Karten an diesem Tag">
-                        {cardCount} {cardCount === 1 ? "Karte" : "Karten"}
-                      </span>
-                      <span
-                        className="num-mono text-caption w-[42px] text-right"
-                        title="Konfidenz der Tagesanalyse"
-                      >
-                        {score != null ? `${score}%` : "—"}
-                      </span>
-                      <Glyph
-                        name="ChevronRight"
-                        size={14}
-                        className={active ? "text-[var(--color-text)]" : "text-faint"}
-                      />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ArrowNavList>
-          </CardBody>
-        </Card>
-      </Section>
+      <Card variant="soft">
+        <CardBody className="p-0">
+          <Stagger className="flex flex-col divide-y divide-[var(--color-border)]/60">
+            {rows.map((row) => (
+              <StaggerItem key={row.date}>
+                <CoachRowItem row={row} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </CardBody>
+      </Card>
     </div>
   );
 }
 
-function ColdStart() {
+function CoachRowItem({ row }: { row: CoachRow }) {
+  const { date, entry } = row;
+  const status: SlotStatus | null = entry?.status ?? null;
+  const payload = entry?.payload ?? null;
+  const hasPayload =
+    payload != null && status != null && PAYLOAD_STATUSES.has(status);
+  const headline = hasPayload
+    ? payload.headline ??
+      (payload.summary_short ? truncate(payload.summary_short, 80) : null)
+    : null;
+  const confidenceValue = hasPayload ? payload.confidence?.value ?? null : null;
+  const retryable = status === "errored" || status === "missed";
+
   return (
-    <EmptyStateCard
-      cause="abstained"
-      cluster="morning_insight"
-      headline="Noch keine Coaching-Daten"
-    />
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Link
+        href={`/day/${date}#day_synthesis`}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-sleep)]"
+      >
+        <span className="w-[110px] shrink-0 num-mono text-caption">
+          {fmtDateDe(date)}
+        </span>
+        <span className="shrink-0">
+          {status ? <SlotStatusPill status={status} /> : <MutedDash />}
+        </span>
+        <span className="min-w-0 flex-1 text-sm text-[var(--color-text)]">
+          <CoachRowBody
+            status={status}
+            headline={headline}
+            payload={payload}
+            entry={entry}
+          />
+        </span>
+        <span className="shrink-0">
+          {confidenceValue != null ? (
+            <Confidence value={confidenceValue} mode="pill" />
+          ) : null}
+        </span>
+      </Link>
+      {retryable ? (
+        <CoachRetryButton
+          period_key={date}
+          slot_id="day_synthesis"
+          className="shrink-0"
+        />
+      ) : null}
+    </div>
   );
 }
 
-function fmtShort(date: string) {
+function CoachRowBody({
+  status,
+  headline,
+  payload,
+  entry,
+}: {
+  status: SlotStatus | null;
+  headline: string | null;
+  payload: DaySynthesisPayload | null;
+  entry: SlotEntry<DaySynthesisPayload> | null;
+}) {
+  if (status === null) return <MutedDash />;
+  if (status === "abstained") {
+    return (
+      <span className="text-caption text-muted">
+        {payload?.abstain_reason ?? "Daten zu dünn — ausgesetzt."}
+      </span>
+    );
+  }
+  if (status === "errored") {
+    const friendly = friendlySlotError(entry?.error?.message);
+    return (
+      <span className="truncate block text-caption text-[var(--color-band-down)]">
+        {friendly.summary}
+      </span>
+    );
+  }
+  if (status === "scheduled" || status === "computing") {
+    const when = entry?.scheduled_for ? fmtTimeDe(entry.scheduled_for) : null;
+    return (
+      <span className="text-caption text-muted">
+        {when ? `geplant für ${when}` : "geplant"}
+      </span>
+    );
+  }
+  if (status === "missed") {
+    return <span className="text-caption text-muted">verpasst</span>;
+  }
+  if (headline) {
+    return <span className="truncate block">{headline}</span>;
+  }
+  return <MutedDash />;
+}
+
+function MutedDash() {
+  return <span className="text-caption text-faint">—</span>;
+}
+
+function truncate(s: string, n: number): string {
+  if (s.length <= n) return s;
+  return `${s.slice(0, n - 1).trimEnd()}…`;
+}
+
+function fmtDateDe(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("de-DE", {
-    weekday: "short", day: "numeric", month: "short",
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/Berlin",
+  });
+}
+
+function fmtTimeDe(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "Europe/Berlin",
   });
 }
