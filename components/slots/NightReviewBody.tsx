@@ -16,11 +16,13 @@ export function NightReviewBody({ payload }: { payload: NightReviewPayload }) {
         { label: "Kontext", text: payload.analysis_context },
       ]}
       kpis={payload.kpis}
-      suggestions={payload.suggestions_today.map((s) => ({
+      suggestions={(payload.suggestions_today ?? []).map((s) => ({
         anchor: s.anchor,
         tiny: s.tiny,
         why: s.why,
       }))}
+      confidence={payload.confidence?.value}
+      domain="sleep"
     />
   );
 }

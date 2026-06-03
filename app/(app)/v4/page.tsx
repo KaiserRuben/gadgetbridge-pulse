@@ -1,22 +1,24 @@
 import "server-only";
 
+import Link from "next/link";
+
 import { readViewState, detectScope } from "@/lib/view-state/fetcher";
 import { ViewStateProvider } from "@/lib/view-state/context";
+import { HeroHeader } from "@/components/view/HeroHeader";
+import { PriorityBanner } from "@/components/view/PriorityBanner";
 import { Tier1Tile } from "@/components/view/Tier1Tile";
-import { SlotStrip } from "@/components/view/SlotStrip";
-import { PipelineHealthBadge } from "@/components/view/PipelineHealthBadge";
-import { NextRefreshIndicator } from "@/components/view/NextRefreshIndicator";
-import { SlotCell } from "@/components/view/SlotCell";
-import { NightReviewBody } from "@/components/slots/NightReviewBody";
-import { MorningBriefingBody } from "@/components/slots/MorningBriefingBody";
-import { MiddayCheckBody } from "@/components/slots/MiddayCheckBody";
-import { EveningReviewBody } from "@/components/slots/EveningReviewBody";
-import { DaySynthesisBody } from "@/components/slots/DaySynthesisBody";
+import { DayTimeline, GlanceAside } from "@/components/view/DayTimeline";
+import { ConsentCard } from "@/components/notifications/consent-card";
+import {
+  acceptSoftConsent,
+  declineSoftConsent,
+} from "../(home)/_consent-actions";
+import {
+  maybePromoteToEligible,
+  shouldShowSoftCard,
+} from "@/lib/notifications/consent";
+import { isEngagementCriteriaMet } from "@/lib/notifications/eligible";
 import { todayKey } from "@/lib/time";
-import type {
-  ViewStateDaily,
-  ViewStateDailySlots,
-} from "@/runner/v4/types.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -34,93 +36,56 @@ export default async function V4HomePage({
   const scope = detectScope(dateParam);
   if (!scope) {
     return (
-      <main className="space-y-4">
-        <h1 className="text-xl font-semibold">v4 dashboard</h1>
+      <main className="space-y-4 pb-dock">
+        <h1 className="text-hero">Übersicht</h1>
         <p className="text-sm text-[var(--color-band-down)]">
           ungültiger Datums-Key: <code>{dateParam}</code>
         </p>
+        <Link
+          href="/v4"
+          className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-surface-soft)] px-3 py-1.5 text-sm ring-1 ring-inset ring-[var(--color-border)] hover:bg-[var(--color-surface-hover)]"
+        >
+          → Zurück zu heute
+        </Link>
       </main>
     );
   }
 
   const initial = await readViewState(dateParam);
+  const consentState = maybePromoteToEligible(isEngagementCriteriaMet());
+  const showConsentCard = shouldShowSoftCard(consentState);
 
   return (
     <ViewStateProvider period_key={dateParam} scope={scope} initial={initial}>
-      <main className="space-y-6">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-[-0.02em]">
-              v4 — {dateParam}
-            </h1>
-            <NextRefreshIndicator className="text-[0.6875rem] text-[var(--color-text-muted)]" />
-          </div>
-          <div className="flex items-center gap-2">
-            <PipelineHealthBadge />
-            <SlotStrip />
-          </div>
-        </header>
+      <main className="space-y-6 pb-dock">
+        {showConsentCard && (
+          <ConsentCard onAccept={acceptSoftConsent} onDecline={declineSoftConsent} />
+        )}
 
+        <HeroHeader />
+        <PriorityBanner />
         <Tier1Tile />
 
         {initial == null ? (
           <p className="text-sm text-[var(--color-text-muted)]">
-            view_state für {dateParam} noch nicht geschrieben.
-            Daemon (<code>pulse v4-daemon</code>) muss laufen.
+            Für diesen Tag liegen noch keine Ergebnisse vor. Die Auswertung läuft
+            automatisch — schau später nochmal vorbei.
           </p>
         ) : initial.scope === "daily" ? (
-          <DailyShell view={initial} />
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <DayTimeline />
+            <GlanceAside />
+          </div>
         ) : (
           <p className="text-sm text-[var(--color-text-muted)]">
-            weekly view nicht hier — Wochen-Übersicht unter /week
+            Wochen-Übersicht unter{" "}
+            <Link href="/week" className="underline">
+              /week
+            </Link>
+            .
           </p>
         )}
       </main>
     </ViewStateProvider>
-  );
-}
-
-function DailyShell({ view }: { view: ViewStateDaily }) {
-  const s = view.slots as ViewStateDailySlots;
-  return (
-    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <SlotCell
-        slot_id="night_review"
-        entry={s.night_review}
-        title="Nacht-Review"
-        eyebrow="Letzte Nacht"
-        Body={NightReviewBody}
-        glow="sleep"
-      />
-      <SlotCell
-        slot_id="morning_briefing"
-        entry={s.morning_briefing}
-        title="Morgen-Brief"
-        eyebrow="Heute"
-        Body={MorningBriefingBody}
-      />
-      <SlotCell
-        slot_id="midday_check"
-        entry={s.midday_check}
-        title="Mittags-Check"
-        eyebrow="Tagverlauf"
-        Body={MiddayCheckBody}
-      />
-      <SlotCell
-        slot_id="evening_review"
-        entry={s.evening_review}
-        title="Abend-Review"
-        eyebrow="Tag bisher"
-        Body={EveningReviewBody}
-        glow="activity"
-      />
-      <SlotCell
-        slot_id="day_synthesis"
-        entry={s.day_synthesis}
-        title="Tages-Synthese"
-        eyebrow="Reflexion"
-        Body={DaySynthesisBody}
-      />
-    </section>
   );
 }

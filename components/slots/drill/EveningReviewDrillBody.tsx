@@ -3,6 +3,8 @@
 import { Pill } from "@/components/ui/pill";
 import { Confidence } from "@/components/ui/confidence";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { safeArr } from "@/components/slots/_safe";
+import { HrTodayChart } from "@/components/charts/hr-today-chart";
 import { DrillKpiRow } from "./DrillKpiRow";
 import { DrillSuggestionCard } from "./DrillSuggestionCard";
 import type {
@@ -34,6 +36,9 @@ export function EveningReviewDrillBody({
   if (payload.abstain) return <AbstainNote reason={payload.abstain_reason} />;
   const wi = payload.workout_impact;
   const wd = payload.wind_down_suggestion;
+  const kpis = safeArr(payload.kpis);
+  const hrBuckets = safeArr(payload.hr_today);
+  const hrZones = safeArr(payload.hr_zone_minutes);
   return (
     <div className="flex flex-col gap-4">
       {payload.headline ? (
@@ -95,13 +100,28 @@ export function EveningReviewDrillBody({
         </section>
       ) : null}
 
-      {payload.kpis.length > 0 ? (
+      {hrBuckets.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+            Herzfrequenz heute
+          </h3>
+          <div className="rounded-md bg-[var(--color-surface-soft)] p-3">
+            <HrTodayChart
+              buckets={hrBuckets}
+              zoneMinutes={hrZones}
+              height={200}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {kpis.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
             Kennzahlen
           </h3>
           <div className="flex flex-col gap-1.5">
-            {payload.kpis.map((k) => (
+            {kpis.map((k) => (
               <DrillKpiRow
                 key={k.id}
                 kpi={{
@@ -116,12 +136,16 @@ export function EveningReviewDrillBody({
         </section>
       ) : null}
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <Confidence value={payload.confidence.value} mode="pill" />
-        <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
-          {payload.confidence.reasoning}
-        </p>
-      </footer>
+      {payload.confidence ? (
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+          <Confidence value={payload.confidence.value} mode="pill" />
+          {payload.confidence.reasoning ? (
+            <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
+              {payload.confidence.reasoning}
+            </p>
+          ) : null}
+        </footer>
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { Pill } from "@/components/ui/pill";
 import { Confidence } from "@/components/ui/confidence";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { StressHourly } from "@/components/charts/stress-hourly";
 import { DrillSuggestionCard } from "./DrillSuggestionCard";
 import type {
   MiddayCheckPayload,
@@ -33,6 +34,9 @@ export function MiddayCheckDrillBody({
 }) {
   if (payload.abstain) return <AbstainNote reason={payload.abstain_reason} />;
   const cc = payload.course_correction;
+  const stressHourly = Array.isArray(payload.stress_hourly) ? payload.stress_hourly : null;
+  const hasStress =
+    stressHourly !== null && stressHourly.some((v) => v != null);
   return (
     <div className="flex flex-col gap-4">
       {payload.headline ? (
@@ -87,12 +91,27 @@ export function MiddayCheckDrillBody({
         </section>
       ) : null}
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <Confidence value={payload.confidence.value} mode="pill" />
-        <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
-          {payload.confidence.reasoning}
-        </p>
-      </footer>
+      {hasStress && stressHourly ? (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+            Stress heute
+          </h3>
+          <div className="rounded-md bg-[var(--color-surface-soft)] p-3">
+            <StressHourly values={stressHourly} height={96} />
+          </div>
+        </section>
+      ) : null}
+
+      {payload.confidence ? (
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+          <Confidence value={payload.confidence.value} mode="pill" />
+          {payload.confidence.reasoning ? (
+            <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
+              {payload.confidence.reasoning}
+            </p>
+          ) : null}
+        </footer>
+      ) : null}
     </div>
   );
 }

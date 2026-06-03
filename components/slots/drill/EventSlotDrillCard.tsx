@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -9,7 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SlotStatusPill } from "@/components/view/SlotStatusPill";
 import { SlotRetryButton } from "@/components/view/SlotRetryButton";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { friendlySlotError } from "@/components/slots/_friendly-error";
 import { SourcesFooter } from "./SourcesFooter";
+import { renderDrillBody } from "./_body-registry";
 import type {
   EventSlotId,
   SlotEntry,
@@ -39,7 +40,6 @@ export interface EventSlotDrillCardProps {
   title: string;
   eyebrow?: string;
   glow?: Parameters<typeof Card>[0]["glow"];
-  Body: (props: { payload: unknown }) => ReactNode;
 }
 
 export function EventSlotDrillCard({
@@ -51,7 +51,6 @@ export function EventSlotDrillCard({
   title,
   eyebrow,
   glow,
-  Body,
 }: EventSlotDrillCardProps) {
   const status = entry.status;
   const ref = useRef<HTMLElement | null>(null);
@@ -66,7 +65,7 @@ export function EventSlotDrillCard({
   const hasPayload = entry.payload != null && PAYLOAD_STATUSES.has(status);
 
   return (
-    <section ref={ref} id={anchor} className="scroll-mt-6">
+    <section ref={ref} id={anchor} className="scroll-mt-20">
       <Card glow={glow ?? null} className="flex flex-col gap-3 p-5">
         <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -97,28 +96,36 @@ export function EventSlotDrillCard({
         ) : null}
 
         {hasPayload && entry.payload != null ? (
-          <Body payload={entry.payload} />
+          renderDrillBody(slot_id, entry.payload, observation_id)
         ) : status === "abstained" ? (
           <AbstainNote reason={entry.degraded_reason} />
         ) : status === "errored" ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-[var(--color-band-down)]">
-              Fehler: {entry.error?.message ?? "unbekannt"}
-            </p>
-            <SlotRetryButton
-              slot_id={slot_id}
-              event_id={event_id}
-              observation_id={observation_id}
-            />
-          </div>
+          (() => {
+            const { summary, raw } = friendlySlotError(entry.error?.message);
+            return (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-[var(--color-band-down)]">
+                  {summary}
+                </p>
+                <details className="text-[0.6875rem] text-[var(--color-text-muted)]">
+                  <summary className="cursor-pointer">Details</summary>
+                  <pre className="mt-1 whitespace-pre-wrap text-[0.6875rem]">
+                    {raw}
+                  </pre>
+                </details>
+                <SlotRetryButton
+                  slot_id={slot_id}
+                  event_id={event_id}
+                  observation_id={observation_id}
+                />
+              </div>
+            );
+          })()
         ) : status === "scheduled" || status === "computing" ? (
           <div className="space-y-2">
             <Skeleton className="h-3 w-3/4" />
             <Skeleton className="h-3 w-1/2" />
             <Skeleton className="h-3 w-2/3" />
-            <p className="text-[0.6875rem] text-[var(--color-text-muted)]">
-              geplant für {fmtTime(entry.scheduled_for)}
-            </p>
           </div>
         ) : status === "missed" ? (
           <div className="flex flex-col gap-2">

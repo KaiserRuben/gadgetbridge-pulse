@@ -8,8 +8,8 @@ export interface TopAnchor {
   takeaway: string;
 }
 
-export function TopAnchorsList({ anchors }: { anchors: TopAnchor[] }) {
-  if (anchors.length === 0) return null;
+export function TopAnchorsList({ anchors }: { anchors: TopAnchor[] | null | undefined }) {
+  if (!Array.isArray(anchors) || anchors.length === 0) return null;
   return (
     <ul className="flex flex-col gap-1.5">
       {anchors.map((a, i) => (

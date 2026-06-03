@@ -3,6 +3,7 @@
 import { Pill } from "@/components/ui/pill";
 import { Confidence } from "@/components/ui/confidence";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { safeArr } from "@/components/slots/_safe";
 import { DrillSuggestionCard } from "./DrillSuggestionCard";
 import type {
   MorningBriefingPayload,
@@ -33,6 +34,7 @@ export function MorningBriefingDrillBody({
 }) {
   if (payload.abstain) return <AbstainNote reason={payload.abstain_reason} />;
   const pa = payload.plan_adherence;
+  const suggestions = safeArr(payload.suggestions_today);
   return (
     <div className="flex flex-col gap-4">
       {payload.headline ? (
@@ -78,13 +80,13 @@ export function MorningBriefingDrillBody({
         </p>
       </section>
 
-      {payload.suggestions_today.length > 0 ? (
+      {suggestions.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
             Vorschläge
           </h3>
           <div className="flex flex-col gap-2">
-            {payload.suggestions_today.map((s, i) => (
+            {suggestions.map((s, i) => (
               <DrillSuggestionCard
                 key={`${s.anchor}-${i}`}
                 suggestion={{
@@ -100,12 +102,16 @@ export function MorningBriefingDrillBody({
         </section>
       ) : null}
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <Confidence value={payload.confidence.value} mode="pill" />
-        <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
-          {payload.confidence.reasoning}
-        </p>
-      </footer>
+      {payload.confidence ? (
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+          <Confidence value={payload.confidence.value} mode="pill" />
+          {payload.confidence.reasoning ? (
+            <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
+              {payload.confidence.reasoning}
+            </p>
+          ) : null}
+        </footer>
+      ) : null}
     </div>
   );
 }

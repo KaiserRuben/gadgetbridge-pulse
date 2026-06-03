@@ -4,6 +4,7 @@ import { Pill } from "@/components/ui/pill";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Confidence } from "@/components/ui/confidence";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { safeArr } from "@/components/slots/_safe";
 import type {
   AnomalyExplainPayload,
   DriverWeight,
@@ -29,6 +30,7 @@ export function AnomalyExplainDrillBody({
   observation_id?: string;
 }) {
   if (payload.abstain) return <AbstainNote reason={payload.abstain_reason} />;
+  const drivers = safeArr(payload.likely_drivers);
   return (
     <div className="flex flex-col gap-4">
       {observation_id ? (
@@ -63,13 +65,13 @@ export function AnomalyExplainDrillBody({
         </section>
       ) : null}
 
-      {payload.likely_drivers.length > 0 ? (
+      {drivers.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
             Wahrscheinliche Ursachen
           </h3>
           <ol className="flex flex-col gap-2">
-            {payload.likely_drivers.map((d, i) => (
+            {drivers.map((d, i) => (
               <li
                 key={`${d.driver}-${i}`}
                 className="rounded-md bg-[var(--color-surface-soft)] p-3"
@@ -108,12 +110,16 @@ export function AnomalyExplainDrillBody({
         </section>
       ) : null}
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <Confidence value={payload.confidence.value} mode="pill" />
-        <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
-          {payload.confidence.reasoning}
-        </p>
-      </footer>
+      {payload.confidence ? (
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+          <Confidence value={payload.confidence.value} mode="pill" />
+          {payload.confidence.reasoning ? (
+            <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
+              {payload.confidence.reasoning}
+            </p>
+          ) : null}
+        </footer>
+      ) : null}
     </div>
   );
 }

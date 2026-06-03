@@ -31,11 +31,13 @@ export function MorningBriefingBody({ payload }: { payload: MorningBriefingPaylo
       summary_short={payload.summary_short}
       summary_long={payload.summary_long}
       paragraphs={[{ label: "Fokus", text: payload.focus_today }]}
-      suggestions={payload.suggestions_today.map((s) => ({
+      suggestions={(payload.suggestions_today ?? []).map((s) => ({
         anchor: s.anchor,
         tiny: s.tiny,
         why: s.why,
       }))}
+      confidence={payload.confidence?.value}
+      domain="heart"
       extras={
         <div className="flex items-start gap-2 rounded-md bg-[var(--color-surface-soft)] p-2 text-xs">
           <Pill tone={planTone[pa.status]} size="sm">

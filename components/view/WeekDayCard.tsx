@@ -24,21 +24,21 @@ export function WeekDayCard({
   const status = entry?.status;
   const payload = entry?.payload ?? null;
 
+  const summary = payload?.summary_short?.trim() ?? "";
+  const dash = <p className="text-xs text-[var(--color-text-muted)]">—</p>;
   let body: React.ReactNode;
   if (
-    payload &&
-    (status === "fresh" ||
-      status === "aging" ||
-      status === "stale" ||
-      status === "degraded")
+    status === "fresh" ||
+    status === "aging" ||
+    status === "stale" ||
+    status === "degraded"
   ) {
-    const summary = payload.summary_short?.trim();
     body = summary ? (
       <p className="text-xs leading-snug text-[var(--color-text)]/85">
         {truncate(summary, 80)}
       </p>
     ) : (
-      <p className="text-xs text-[var(--color-text-muted)]">—</p>
+      dash
     );
   } else if (status === "abstained") {
     body = (
@@ -52,7 +52,7 @@ export function WeekDayCard({
       </div>
     );
   } else {
-    body = <p className="text-xs text-[var(--color-text-muted)]">—</p>;
+    body = dash;
   }
 
   return (

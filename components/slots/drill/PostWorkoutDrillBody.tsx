@@ -3,6 +3,7 @@
 import { Pill } from "@/components/ui/pill";
 import { Confidence } from "@/components/ui/confidence";
 import { AbstainNote } from "@/components/slots/_AbstainNote";
+import { safeArr } from "@/components/slots/_safe";
 import { DrillKpiRow } from "./DrillKpiRow";
 import { DrillSuggestionCard } from "./DrillSuggestionCard";
 import type {
@@ -32,6 +33,7 @@ export function PostWorkoutDrillBody({
   if (payload.abstain) return <AbstainNote reason={payload.abstain_reason} />;
   const la = payload.load_assessment;
   const rw = payload.recovery_window;
+  const kpis = safeArr(payload.kpis);
   return (
     <div className="flex flex-col gap-4">
       {payload.headline ? (
@@ -50,37 +52,41 @@ export function PostWorkoutDrillBody({
         </p>
       ) : null}
 
-      <section className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-soft)] p-3">
-        <header className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-            Belastung
-          </h3>
-          <Pill tone={loadTone[la.level]} size="sm">
-            {loadLabel[la.level]}
-          </Pill>
-        </header>
-        <p className="text-sm text-[var(--color-text)]">{la.vs_recent}</p>
-        <p className="text-[0.75rem] italic text-[var(--color-text-muted)]">
-          {la.reasoning}
-        </p>
-      </section>
+      {la ? (
+        <section className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-soft)] p-3">
+          <header className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              Belastung
+            </h3>
+            <Pill tone={loadTone[la.level]} size="sm">
+              {loadLabel[la.level]}
+            </Pill>
+          </header>
+          <p className="text-sm text-[var(--color-text)]">{la.vs_recent}</p>
+          <p className="text-[0.75rem] italic text-[var(--color-text-muted)]">
+            {la.reasoning}
+          </p>
+        </section>
+      ) : null}
 
-      <section className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-soft)] p-3">
-        <header className="flex items-baseline gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-            Erholungsfenster
-          </h3>
-          {rw.hours_estimated != null ? (
-            <span className="num text-sm font-medium text-[var(--color-text)]">
-              ~{Math.round(rw.hours_estimated)} h
-            </span>
-          ) : null}
-        </header>
-        <p className="text-sm text-[var(--color-text)]">{rw.guidance}</p>
-        <p className="text-[0.75rem] italic text-[var(--color-text-muted)]">
-          {rw.reasoning}
-        </p>
-      </section>
+      {rw ? (
+        <section className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-soft)] p-3">
+          <header className="flex items-baseline gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              Erholungsfenster
+            </h3>
+            {rw.hours_estimated != null ? (
+              <span className="num text-sm font-medium text-[var(--color-text)]">
+                ~{Math.round(rw.hours_estimated)} h
+              </span>
+            ) : null}
+          </header>
+          <p className="text-sm text-[var(--color-text)]">{rw.guidance}</p>
+          <p className="text-[0.75rem] italic text-[var(--color-text-muted)]">
+            {rw.reasoning}
+          </p>
+        </section>
+      ) : null}
 
       {payload.fueling_hint ? (
         <section className="flex flex-col gap-2">
@@ -109,13 +115,13 @@ export function PostWorkoutDrillBody({
         </section>
       ) : null}
 
-      {payload.kpis.length > 0 ? (
+      {kpis.length > 0 ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
             Kennzahlen
           </h3>
           <div className="flex flex-col gap-1.5">
-            {payload.kpis.map((k) => (
+            {kpis.map((k) => (
               <DrillKpiRow
                 key={k.id}
                 kpi={{
@@ -130,12 +136,16 @@ export function PostWorkoutDrillBody({
         </section>
       ) : null}
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <Confidence value={payload.confidence.value} mode="pill" />
-        <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
-          {payload.confidence.reasoning}
-        </p>
-      </footer>
+      {payload.confidence ? (
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+          <Confidence value={payload.confidence.value} mode="pill" />
+          {payload.confidence.reasoning ? (
+            <p className="text-[0.6875rem] italic text-[var(--color-text-muted)]">
+              {payload.confidence.reasoning}
+            </p>
+          ) : null}
+        </footer>
+      ) : null}
     </div>
   );
 }

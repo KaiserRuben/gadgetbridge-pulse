@@ -35,6 +35,8 @@ export function EveningReviewBody({ payload }: { payload: EveningReviewPayload }
       summary_long={payload.summary_long}
       paragraphs={[{ label: "Tag bisher", text: payload.day_so_far }]}
       kpis={payload.kpis}
+      confidence={payload.confidence?.value}
+      domain="activity"
       extras={
         <div className="flex flex-col gap-2">
           {wi ? (

@@ -17,6 +17,7 @@ export function DaySynthesisBody({ payload }: { payload: DaySynthesisPayload }) 
         { label: "Morgen", text: payload.tomorrow_focus },
       ]}
       kpis={payload.kpis}
+      confidence={payload.confidence?.value}
       extras={<TopAnchorsList anchors={payload.top_anchors} />}
     />
   );
