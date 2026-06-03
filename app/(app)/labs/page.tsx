@@ -2,11 +2,14 @@ import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
 import { loadLabs } from "@/lib/insights";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Pill } from "@/components/ui/pill";
-import { Glyph } from "@/components/ui/glyph";
+import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { NumberTicker } from "@/components/motion/number-ticker";
 
 const FEATURES = [
   { key: "cycle",              label: "Zyklus-Tracking",     hint: "Periode + Phasen" },
@@ -22,40 +25,53 @@ export default async function LabsPage() {
   noStore();
   const labs = await loadLabs();
   const flags = (labs?.features ?? {}) as Record<string, boolean | undefined>;
+  const activeCount = FEATURES.filter((f) => flags[f.key] === true).length;
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <Eyebrow>Labs</Eyebrow>
-        <h1 className="text-hero">Experimente</h1>
-        <p className="text-body text-muted max-w-[60ch]">
-          Funktionen, die noch nicht stabil oder belastbar genug für die Hauptansicht sind.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Labs"
+        title="Experimente"
+        sub="Funktionen, die noch nicht stabil oder belastbar genug für die Hauptansicht sind."
+        trailing={
+          <div className="flex items-baseline gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-surface-2)] px-3 py-1.5 ring-1 ring-inset ring-[var(--color-border)]">
+            <NumberTicker value={activeCount} className="num text-title text-[var(--color-activity)]" />
+            <span className="text-caption">von {FEATURES.length} aktiv</span>
+          </div>
+        }
+      />
 
-      <Section eyebrow="Status">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {FEATURES.map((f) => {
-            const enabled = flags[f.key] === true;
-            return (
-              <Card key={f.key} variant={enabled ? "surface" : "soft"}>
-                <CardBody className="p-5 flex items-start gap-3">
-                  <span className="grid place-items-center size-9 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)]">
-                    <Glyph name="FlaskConical" size={16} className={enabled ? "text-[var(--color-activity)]" : "text-subtle"} />
-                  </span>
-                  <div className="flex flex-col gap-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[0.9375rem] font-medium">{f.label}</span>
-                      <Pill tone={enabled ? "up" : "low"} size="sm">{enabled ? "aktiv" : "stub"}</Pill>
-                    </div>
-                    <span className="text-caption">{f.hint}</span>
-                  </div>
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
-      </Section>
+      <FadeRise>
+        <Section eyebrow="Status">
+          <Stagger className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {FEATURES.map((f) => {
+              const enabled = flags[f.key] === true;
+              return (
+                <StaggerItem key={f.key}>
+                  <Card variant={enabled ? "surface" : "soft"} hoverable>
+                    <CardBody className="flex items-start gap-3 p-5">
+                      <IconBadge
+                        icon="FlaskConical"
+                        tone={enabled ? "activity" : "neutral"}
+                        size="sm"
+                      />
+                      <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-title">{f.label}</span>
+                          <Pill tone={enabled ? "up" : "low"} size="sm">
+                            {enabled ? "aktiv" : "stub"}
+                          </Pill>
+                        </div>
+                        <span className="text-caption">{f.hint}</span>
+                      </div>
+                    </CardBody>
+                  </Card>
+                </StaggerItem>
+              );
+            })}
+          </Stagger>
+        </Section>
+      </FadeRise>
     </div>
   );
 }
