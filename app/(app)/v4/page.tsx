@@ -7,6 +7,7 @@ import { ViewStateProvider } from "@/lib/view-state/context";
 import { HeroHeader } from "@/components/view/HeroHeader";
 import { PriorityBanner } from "@/components/view/PriorityBanner";
 import { Tier1Tile } from "@/components/view/Tier1Tile";
+import { WorkoutsToday } from "@/components/view/WorkoutsToday";
 import { DayTimeline, GlanceAside } from "@/components/view/DayTimeline";
 import { ConsentCard } from "@/components/notifications/consent-card";
 import {
@@ -65,6 +66,7 @@ export default async function V4HomePage({
         <HeroHeader />
         <PriorityBanner />
         <Tier1Tile />
+        <WorkoutsToday />
 
         {initial == null ? (
           <p className="text-sm text-[var(--color-text-muted)]">

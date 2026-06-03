@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { FadeRise } from "@/components/motion/fade-rise";
 import { useViewState } from "@/lib/view-state/context";
@@ -75,17 +76,29 @@ function AnomalyRow({ anomaly }: { anomaly: AnomalyEvent }) {
           </p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={explain}
-        disabled={busy || done}
-        className={cn(
-          "shrink-0 rounded-[var(--radius-pill)] px-3 py-1.5 text-[0.75rem] font-medium ring-1 ring-inset transition-colors",
-          "ring-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] disabled:opacity-50",
-        )}
-      >
-        {done ? "läuft…" : busy ? "…" : "Warum?"}
-      </button>
+      {done ? (
+        // The explanation renders on the day-detail page (anomaly_explain has no
+        // home card); link there so "Warum?" isn't a dead-end. It streams in via
+        // SSE on that page once the slot computes.
+        <Link
+          href={`/day/${period_key}#anomaly_explain-${anomaly.code}`}
+          className="shrink-0 rounded-[var(--radius-pill)] px-3 py-1.5 text-[0.75rem] font-medium ring-1 ring-inset ring-[var(--color-border-strong)] transition-colors hover:bg-[var(--color-surface-2)]"
+        >
+          Ansehen →
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={explain}
+          disabled={busy}
+          className={cn(
+            "shrink-0 rounded-[var(--radius-pill)] px-3 py-1.5 text-[0.75rem] font-medium ring-1 ring-inset transition-colors",
+            "ring-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] disabled:opacity-50",
+          )}
+        >
+          {busy ? "…" : "Warum?"}
+        </button>
+      )}
     </div>
   );
 }

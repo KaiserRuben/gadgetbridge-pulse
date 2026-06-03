@@ -5,7 +5,7 @@ import { NumberTicker } from "@/components/motion/number-ticker";
 import { Sparkline } from "@/components/charts/sparkline";
 import { useViewState } from "@/lib/view-state/context";
 import { cn } from "@/lib/cn";
-import type { Point, SessionTemplateRef } from "@/runner/v4/types.ts";
+import type { Band, DayScore, Point, SessionTemplateRef } from "@/runner/v4/types.ts";
 
 /**
  * The page is a DAY, not a pipeline. The hero leads with human framing
@@ -70,6 +70,7 @@ export function HeroHeader() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {k.day_score?.value != null ? <DayScorePill score={k.day_score} /> : null}
             {facts.hr_now != null && !sleeping && isToday ? (
               <LiveHeart bpm={facts.hr_now} />
             ) : null}
@@ -161,6 +162,31 @@ function TrendCell({
       <Sparkline values={values} tone={tone} width={132} height={32} fill />
       <span className="text-[0.625rem] text-[var(--color-text-faint)]">14 Tage</span>
     </div>
+  );
+}
+
+const SCORE_BAND_COLOR: Record<Band, string> = {
+  above_usual: "var(--color-band-up)",
+  steady: "var(--color-band-steady)",
+  below_usual: "var(--color-band-down)",
+};
+
+/** Holistic 0–100 day score from day_synthesis. Null until end-of-day, so it
+ *  appears as a quiet band-coloured pill rather than competing with the hero. */
+function DayScorePill({ score }: { score: DayScore }) {
+  if (score.value == null) return null;
+  const color = score.band ? SCORE_BAND_COLOR[score.band] : "var(--color-band-steady)";
+  return (
+    <span
+      title={score.reasoning ?? undefined}
+      className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-surface-soft)] px-2.5 py-1 text-[0.75rem]"
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      <span className="text-[var(--color-text-subtle)]">Tagesscore</span>
+      <span className="num font-semibold text-[var(--color-text)]">
+        {Math.round(score.value)}
+      </span>
+    </span>
   );
 }
 

@@ -26,6 +26,7 @@ export function Sparkline({
   height = 36,
   width = 120,
   fill = true,
+  markers = false,
   className,
 }: {
   values: Array<number | null>;
@@ -33,9 +34,12 @@ export function Sparkline({
   height?: number;
   width?: number;
   fill?: boolean;
+  /** Draw a dot at every present point. Makes sparse/gappy series read as
+   *  intentional readings rather than a fractured line. */
+  markers?: boolean;
   className?: string;
 }) {
-  const { segments, area, hasGaps, lastY } = useMemo(
+  const { segments, area, hasGaps, lastY, dots } = useMemo(
     () => buildPath(values, width, height),
     [values, width, height],
   );
@@ -77,6 +81,10 @@ export function Sparkline({
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
         />
       ))}
+      {markers &&
+        dots.map(([cx, cy], i) => (
+          <circle key={i} cx={cx} cy={cy} r={height >= 90 ? 2.6 : 1.6} fill={color} opacity={0.85} />
+        ))}
       {lastY != null && <circle cx={width} cy={lastY} r={2} fill={color} />}
     </svg>
   );
@@ -85,13 +93,23 @@ export function Sparkline({
 function buildPath(values: Array<number | null>, w: number, h: number) {
   const present = values.filter((v): v is number => v != null);
   if (present.length === 0) {
-    return { segments: [] as string[], area: "", hasGaps: false, lastY: null as number | null };
+    return {
+      segments: [] as string[],
+      area: "",
+      hasGaps: false,
+      lastY: null as number | null,
+      dots: [] as Array<readonly [number, number]>,
+    };
   }
   const min = Math.min(...present);
   const max = Math.max(...present);
   const range = max - min || 1;
   const step = w / Math.max(1, values.length - 1);
   const y = (v: number) => h - 2 - ((v - min) / range) * (h - 4);
+  const dots: Array<readonly [number, number]> = [];
+  values.forEach((v, i) => {
+    if (v != null) dots.push([i * step, y(v)] as const);
+  });
 
   // Split into contiguous runs of present points; each run is its own path.
   const segments: string[] = [];
@@ -128,5 +146,5 @@ function buildPath(values: Array<number | null>, w: number, h: number) {
   // at the right edge over a gap)
   const lastVal = values[values.length - 1];
   const lastY = lastVal != null ? y(lastVal) : null;
-  return { segments, area, hasGaps, lastY };
+  return { segments, area, hasGaps, lastY, dots };
 }

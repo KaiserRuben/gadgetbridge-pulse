@@ -1,9 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { Glyph } from "@/components/ui/glyph";
 import { SlotStatusPill } from "./SlotStatusPill";
 import { SlotRetryButton } from "./SlotRetryButton";
 import { friendlySlotError } from "@/components/slots/_friendly-error";
@@ -45,6 +47,11 @@ export interface SlotCellProps<P> {
   retryable?: boolean;
   /** Explicit glow override (back-compat for callers like the week page). */
   glow?: Parameters<typeof Card>[0]["glow"];
+  /** Drill-down into the domain detail page for this day. The deterministic
+   *  detail data exists regardless of the slot's LLM status, so this shows in
+   *  every phase — the slot narrates, the link opens the underlying readings. */
+  detailHref?: string;
+  detailLabel?: string;
 }
 
 function fmtTime(iso: string | null): string {
@@ -73,6 +80,8 @@ export function SlotCell<P>({
   domain,
   retryable = true,
   glow,
+  detailHref,
+  detailLabel,
 }: SlotCellProps<P>) {
   const prefs = useMotionPrefs();
   const status = entry?.status ?? "scheduled";
@@ -155,7 +164,22 @@ export function SlotCell<P>({
           {computedAt ? `berechnet ${fmtTime(computedAt)}` : null}
           {computedAt && entry?.version ? ` · v${entry.version}` : null}
         </span>
-        {showRetry ? <SlotRetryButton slot_id={slot_id} label="Neu" /> : null}
+        <span className="flex items-center gap-3">
+          {detailHref ? (
+            <Link
+              href={detailHref}
+              className="group inline-flex items-center gap-0.5 text-[0.6875rem] text-[var(--color-text-subtle)] transition-colors hover:text-[var(--color-text)]"
+            >
+              {detailLabel ?? "Daten"}
+              <Glyph
+                name="ChevronRight"
+                size={11}
+                className="transition-transform group-hover:translate-x-0.5"
+              />
+            </Link>
+          ) : null}
+          {showRetry ? <SlotRetryButton slot_id={slot_id} label="Neu" /> : null}
+        </span>
       </footer>
     </Card>
   );

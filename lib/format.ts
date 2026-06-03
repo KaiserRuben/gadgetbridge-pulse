@@ -1,7 +1,9 @@
 /** Number / unit formatters. Pure, no locale assumptions outside Europe/Berlin display. */
 
-const nfInt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const nf1 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+// German UI → de-DE grouping ("16.212", not "16,578"). Keeps detail pages
+// numerically identical to the home, which already formats via de-DE.
+const nfInt = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 
 export const fmtInt = (n: number) => nfInt.format(Math.round(n));
 export const fmt1 = (n: number) => nf1.format(n);

@@ -105,12 +105,13 @@ export const NAV_SHEET_MOBILE: readonly NavItem[] = [
   { href: "/log", label: "Log", icon: "PenLine", match: "^/log(/|$)" },
   { href: "/profile", label: "Profil", icon: "User", match: "^/profile(/|$)" },
   { href: "/settings", label: "Einstellungen", icon: "Settings", match: "^/settings(/|$)" },
-  // Legacy per-domain pages (kept reachable while v4 slots stabilise).
-  { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
-  { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
-  { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
-  { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
-  { href: "/stress", label: "Stress (v3)", icon: "Waves", match: "^/stress(/|$)" },
+  // Per-domain drill-downs (detail twins of the home KPI tiles + slots).
+  { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
+  { href: "/recovery", label: "Erholung", icon: "Gauge", match: "^/recovery(/|$)" },
+  { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
+  { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
+  { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
+  { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
 ] as const;
 
 /**
@@ -145,15 +146,17 @@ export const NAV_DESKTOP_SECTIONS: readonly NavSection[] = [
     ],
   },
   {
-    // Legacy per-domain dashboards. Slots in v4 cover the same data; kept
-    // reachable while v4 stabilises. Drop this section once Phase 4 lands.
-    label: "Legacy",
+    // Per-domain drill-downs. These are the detail twins of the home's KPI
+    // tiles and timeline slots (which link straight into them for the active
+    // day); listed here so any day's domain view is one click away.
+    label: "Bereiche",
     items: [
-      { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
-      { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
-      { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
-      { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
-      { href: "/stress", label: "Stress (v3)", icon: "Waves", match: "^/stress(/|$)" },
+      { href: "/sleep", label: "Schlaf", icon: "Moon", match: "^/sleep(/|$)" },
+      { href: "/recovery", label: "Erholung", icon: "Gauge", match: "^/recovery(/|$)" },
+      { href: "/heart", label: "Herz", icon: "HeartPulse", match: "^/heart(/|$)" },
+      { href: "/activity", label: "Bewegung", icon: "Footprints", match: "^/activity(/|$)" },
+      { href: "/stress", label: "Stress", icon: "Waves", match: "^/stress(/|$)" },
+      { href: "/body", label: "Körper", icon: "Thermometer", match: "^/body(/|$)" },
     ],
   },
 ] as const;

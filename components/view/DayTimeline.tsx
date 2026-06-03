@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
@@ -26,6 +27,9 @@ interface SlotMeta {
   domain?: Domain;
   purpose: string;
   terminal?: boolean;
+  /** Domain detail page this slot drills into, e.g. "/sleep". */
+  detailBase?: string;
+  detailLabel?: string;
 }
 
 const SLOTS: SlotMeta[] = [
@@ -35,6 +39,8 @@ const SLOTS: SlotMeta[] = [
     eyebrow: "Letzte Nacht",
     domain: "sleep",
     purpose: "Fasst deine letzte Nacht zusammen — Schlaf, Erholung, Bereitschaft.",
+    detailBase: "/sleep",
+    detailLabel: "Schlaf-Daten",
   },
   {
     id: "morning_briefing",
@@ -42,6 +48,8 @@ const SLOTS: SlotMeta[] = [
     eyebrow: "Heute früh",
     domain: "heart",
     purpose: "Setzt den Ton für den Tag — Fokus und Intensität.",
+    detailBase: "/heart",
+    detailLabel: "Herz-Daten",
   },
   {
     id: "midday_check",
@@ -49,6 +57,8 @@ const SLOTS: SlotMeta[] = [
     eyebrow: "Tagverlauf",
     domain: "stress",
     purpose: "Kurzer Status zur Tagesmitte — wie läuft der Tag bisher.",
+    detailBase: "/stress",
+    detailLabel: "Stress-Daten",
   },
   {
     id: "evening_review",
@@ -56,6 +66,8 @@ const SLOTS: SlotMeta[] = [
     eyebrow: "Tag bisher",
     domain: "activity",
     purpose: "Aktivität, Last und autonome Balance des Tages.",
+    detailBase: "/activity",
+    detailLabel: "Bewegungs-Daten",
   },
   {
     id: "day_synthesis",
@@ -123,12 +135,28 @@ export function DayTimeline() {
                   domain={meta.domain}
                   isNow={isNow}
                   isTerminal={meta.terminal}
+                  detailHref={
+                    meta.detailBase ? `${meta.detailBase}/${daily.period_key}` : undefined
+                  }
+                  detailLabel={meta.detailLabel}
                 />
               </div>
             </StaggerItem>
           );
         })}
       </Stagger>
+
+      {/* Door into the full per-day breakdown — the only surface that renders
+          the complete slot narrative, hypnogram, KPI/suggestion reasoning and
+          sources. The slot cards above drill sideways into domain telemetry;
+          this drills *down* into the day itself. */}
+      <Link
+        href={`/day/${daily.period_key}`}
+        className="group mt-5 ml-[30px] inline-flex w-fit items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-surface-soft)] px-3 py-1.5 text-[0.8125rem] text-[var(--color-text-muted)] ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+      >
+        Tagesdetail öffnen
+        <span className="transition-transform group-hover:translate-x-0.5">→</span>
+      </Link>
     </div>
   );
 }
@@ -214,7 +242,10 @@ export function GlanceAside() {
   const t1 = view.tier1;
   const ctx = t1?.context;
   const health = view.meta?.pipeline_health ?? "stalled";
-  const anomalies = ctx?.anomalies_today?.length ?? 0;
+  const anomalyList = ctx?.anomalies_today ?? [];
+  // warn/critical surface in the PriorityBanner up top; the quiet info-level
+  // ones have no other home, so list them here by headline.
+  const infoAnomalies = anomalyList.filter((a) => a.severity === "info");
 
   const healthLabel: Record<string, string> = {
     ok: "läuft",
@@ -244,12 +275,24 @@ export function GlanceAside() {
           Pipeline {healthLabel[health]}
           {connected ? null : " · offline"}
         </StatusRow>
-        {anomalies > 0 ? (
-          <StatusRow color="var(--color-tier-s2)">
-            {anomalies} {anomalies === 1 ? "Auffälligkeit" : "Auffälligkeiten"}
-          </StatusRow>
-        ) : (
+        {anomalyList.length === 0 ? (
           <StatusRow color="var(--color-band-up)">Keine Auffälligkeiten</StatusRow>
+        ) : (
+          <>
+            <StatusRow color="var(--color-tier-s2)">
+              {anomalyList.length}{" "}
+              {anomalyList.length === 1 ? "Auffälligkeit" : "Auffälligkeiten"}
+            </StatusRow>
+            {infoAnomalies.map((a, i) => (
+              <span
+                key={`${a.code}-${i}`}
+                className="flex items-start gap-2 pl-0.5 text-[0.75rem] text-[var(--color-text-subtle)]"
+              >
+                <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-band-low)]" />
+                {a.headline_de}
+              </span>
+            ))}
+          </>
         )}
         <NextRefreshIndicator className="pt-0.5 text-[0.6875rem] text-[var(--color-text-subtle)]" />
       </div>
