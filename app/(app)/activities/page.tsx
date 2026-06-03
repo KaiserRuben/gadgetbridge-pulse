@@ -6,13 +6,15 @@ import { getWorkouts } from "@/lib/queries/workouts";
 import { stitchWorkouts, STITCH_GAP_MAX_SEC, type StitchedSession } from "@/lib/queries/workout-stitch";
 import { fmtInt } from "@/lib/format";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { NumberTicker } from "@/components/motion/number-ticker";
 
 export default async function ActivitiesPage() {
   noStore();
@@ -22,28 +24,34 @@ export default async function ActivitiesPage() {
   const grouped = groupByMonth(sessions);
 
   return (
-    <div className="flex flex-col gap-8">
-      <FadeRise>
-        <div className="flex flex-col gap-1">
-          <Eyebrow>
-            Aktivitäten · {sessions.length} Sessions · {stitchedCount} zusammengefügt
-          </Eyebrow>
-          <h1 className="text-hero">Aktivitäten</h1>
-          <p className="text-caption text-muted max-w-prose">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow={`${sessions.length} Sessions · ${stitchedCount} zusammengefügt`}
+        title="Aktivitäten"
+        sub={
+          <>
             Alle aufgezeichneten Trainings und Sessions. Workouts gleicher Art mit ≤ {Math.round(STITCH_GAP_MAX_SEC / 60)} Min.
             Pause werden zu einer Session zusammengefügt — diese sind hervorgehoben und enthalten ein einklappbares
             Dropdown mit den einzelnen Segmenten.
-          </p>
-        </div>
-      </FadeRise>
+          </>
+        }
+        trailing={
+          <div className="flex flex-col items-end gap-0.5">
+            <NumberTicker value={sessions.length} className="num text-h2 leading-none text-[var(--color-text-strong)]" />
+            <span className="eyebrow">Sessions</span>
+          </div>
+        }
+      />
 
       {sessions.length === 0 && (
-        <Card variant="soft">
-          <CardBody className="p-6 grid place-items-center gap-2 text-center text-caption">
-            <Glyph name="Activity" size={18} className="text-subtle" />
-            Noch keine aufgezeichneten Aktivitäten.
-          </CardBody>
-        </Card>
+        <FadeRise>
+          <Card variant="soft">
+            <CardBody className="grid place-items-center gap-2 p-6 text-center text-caption">
+              <IconBadge icon="Activity" tone="activity" size="md" />
+              Noch keine aufgezeichneten Aktivitäten.
+            </CardBody>
+          </Card>
+        </FadeRise>
       )}
 
       {Object.entries(grouped).map(([monthKey, list]) => (
@@ -74,20 +82,17 @@ function SessionCard({ session: s }: { session: StitchedSession }) {
       glow={s.isStitched ? "activity" : undefined}
       className="group"
     >
-      <CardBody className="p-5 flex flex-col gap-3">
+      <CardBody className="flex flex-col gap-3 p-5">
         <div className="flex items-start gap-4">
-          <span
-            className={
-              s.isStitched
-                ? "grid place-items-center size-12 rounded-2xl bg-gradient-to-br from-[var(--color-activity)]/25 to-[var(--color-activity-2)]/15 border border-[var(--color-activity)]/40 text-[var(--color-activity)] shrink-0"
-                : "grid place-items-center size-12 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-activity)] shrink-0"
-            }
-          >
-            <Glyph name={s.typeIcon as GlyphName} size={20} />
-          </span>
+          <IconBadge
+            icon={s.typeIcon as GlyphName}
+            tone="activity"
+            size="lg"
+            variant={s.isStitched ? "solid" : "soft"}
+          />
           <div className="flex flex-col gap-2 min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2 flex-wrap">
-              <Link href={sessionHref} className="text-[1.0625rem] font-medium hover:underline">
+              <Link href={sessionHref} className="text-title hover:underline">
                 {s.typeLabel}
                 {s.isStitched && (
                   <span className="ml-2 text-caption text-muted">
@@ -156,7 +161,7 @@ function SessionCard({ session: s }: { session: StitchedSession }) {
                   <li key={m.id} className="flex flex-col gap-0.5">
                     <Link
                       href={`/workouts/${m.id}`}
-                      className="flex items-center gap-3 py-1.5 hover:bg-[var(--color-surface)]/50 rounded-md -mx-2 px-2 text-caption"
+                      className="flex items-center gap-3 py-1.5 hover:bg-[var(--color-surface)]/50 rounded-[var(--radius-sm)] -mx-2 px-2 text-caption transition-colors"
                     >
                       <span className="num-mono text-faint w-7">#{i + 1}</span>
                       <span className="num-mono w-20">{fmtTime(m.startTs)}</span>
@@ -176,7 +181,7 @@ function SessionCard({ session: s }: { session: StitchedSession }) {
                       <Glyph name="ChevronRight" size={12} className="text-faint" />
                     </Link>
                     {gap != null && gap > 0 && (
-                      <span className="num-mono text-[10px] text-faint pl-10">
+                      <span className="num-mono text-tick text-faint pl-10">
                         Pause {Math.round(gap / 60)} min
                       </span>
                     )}

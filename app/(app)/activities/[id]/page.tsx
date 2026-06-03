@@ -8,13 +8,15 @@ import { stitchWorkouts } from "@/lib/queries/workout-stitch";
 import { loadStitchedGpx } from "@/lib/queries/gpx";
 import { fmtInt } from "@/lib/format";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Pill } from "@/components/ui/pill";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import { GpsMapClient } from "@/components/charts/gps-map-client";
 
 export default async function StitchedActivityPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,25 +44,24 @@ export default async function StitchedActivityPage({ params }: { params: Promise
       : null;
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <Link href="/activities" className="flex items-center gap-1 text-caption text-muted hover:text-[var(--color-text)]">
-          <Glyph name="ChevronRight" size={14} className="rotate-180" />
-          Aktivitäten
-        </Link>
-        <span className="num-mono text-caption">{session.isStitched ? `${session.members.length} Segmente` : "Einzelsession"}</span>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        back={{ href: "/activities", label: "Aktivitäten" }}
+        eyebrow={`${fmtDt(session.startTs)} → ${fmtDt(session.endTs)}`}
+        title={session.typeLabel}
+        trailing={
+          <span className="num-mono text-caption">
+            {session.isStitched ? `${session.members.length} Segmente` : "Einzelsession"}
+          </span>
+        }
+      />
 
       <FadeRise>
         <Card glow="activity">
-          <CardBody className="p-5 lg:p-6 flex flex-col gap-5">
+          <CardBody className="flex flex-col gap-5 p-5 lg:p-6">
             <div className="flex items-start gap-4">
-              <span className="grid place-items-center size-14 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-activity)] shrink-0">
-                <Glyph name={session.typeIcon as GlyphName} size={24} />
-              </span>
+              <IconBadge icon={session.typeIcon as GlyphName} tone="activity" size="lg" />
               <div className="flex flex-col gap-1.5 min-w-0">
-                <Eyebrow>{fmtDt(session.startTs)} → {fmtDt(session.endTs)}</Eyebrow>
-                <h1 className="text-hero">{session.typeLabel}</h1>
                 <div className="flex items-center gap-2 flex-wrap text-caption">
                   <span className="num-mono">{fmtDuration(session.durationSec)}</span>
                   <span className="text-faint">·</span>
@@ -89,7 +90,11 @@ export default async function StitchedActivityPage({ params }: { params: Promise
               </div>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-[var(--color-border)]">
-              <Stat label="Kalorien" value={fmtInt(session.calories)} unit="kcal" />
+              <Stat
+                label="Kalorien"
+                value={<NumberTicker value={session.calories} className="num" />}
+                unit="kcal"
+              />
               <Stat label="Schritte" value={fmtInt(session.steps)} />
               <Stat label="HR max" value={session.hrMax ?? "—"} unit="bpm" />
               <Stat label="Spanne" value={fmtDuration(session.spanSec)} />
@@ -101,10 +106,8 @@ export default async function StitchedActivityPage({ params }: { params: Promise
       {recoveryHours != null && recoveryHours > 0 && (
         <Section eyebrow="Erholung" title={`${Math.round(recoveryHours)} h empfohlen`}>
           <Card variant="soft">
-            <CardBody className="p-5 flex items-center gap-3">
-              <span className="grid place-items-center size-10 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-heart)] shrink-0">
-                <Glyph name="Gauge" size={18} />
-              </span>
+            <CardBody className="flex items-center gap-3 p-5">
+              <IconBadge icon="Gauge" tone="heart" size="md" />
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-body">
                   Bis <span className="num-mono">{recoveryUntilDate ? fmtRecoveryUntil(recoveryUntilDate) : ""}</span> leichte Bewegung.
@@ -148,7 +151,7 @@ export default async function StitchedActivityPage({ params }: { params: Promise
       {trackPoints.length < 2 && session.gpxPaths.length > 0 && (
         <Section eyebrow="GPS" title="Track auf dem Telefon">
           <Card variant="soft">
-            <CardBody className="p-5 flex flex-col gap-2 text-caption">
+            <CardBody className="flex flex-col gap-2 p-5 text-caption">
               <div className="flex items-center gap-3">
                 <Glyph name="Compass" size={16} className="text-subtle" />
                 <span>
@@ -158,7 +161,7 @@ export default async function StitchedActivityPage({ params }: { params: Promise
                 </span>
               </div>
               {session.gpxPaths.map((p) => (
-                <code key={p} className="text-[0.8125rem] num-mono text-subtle truncate block">{p}</code>
+                <code key={p} className="text-body-sm num-mono text-subtle truncate block">{p}</code>
               ))}
             </CardBody>
           </Card>
@@ -176,7 +179,7 @@ export default async function StitchedActivityPage({ params }: { params: Promise
                   <li key={m.id}>
                     <Link
                       href={`/workouts/${m.id}`}
-                      className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-surface)]/50 text-caption"
+                      className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-surface)]/50 text-caption transition-colors"
                     >
                       <span className="num-mono text-faint w-7">#{i + 1}</span>
                       <span className="num-mono w-24">{fmtTime(m.startTs)}</span>
@@ -192,7 +195,7 @@ export default async function StitchedActivityPage({ params }: { params: Promise
                       <Glyph name="ChevronRight" size={12} className="ml-auto text-faint" />
                     </Link>
                     {gap != null && gap > 0 && (
-                      <div className="px-5 pb-2 num-mono text-[10px] text-faint">
+                      <div className="px-5 pb-2 num-mono text-tick text-faint">
                         Pause {Math.round(gap / 60)} min
                       </div>
                     )}
@@ -239,4 +242,3 @@ function fmtRecoveryUntil(date: Date): string {
     timeZone: "Europe/Berlin",
   });
 }
-
