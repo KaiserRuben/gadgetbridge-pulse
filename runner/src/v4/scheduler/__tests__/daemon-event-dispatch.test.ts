@@ -158,7 +158,7 @@ function buildOutbox(): Outbox {
 
 function buildDaemon(outbox: Outbox): SchedulerDaemon {
   return new SchedulerDaemon({
-    db: { prepare: () => ({ get: () => null, all: () => [] }) } as never,
+    db: (() => ({ prepare: () => ({ get: () => null, all: () => [] }) })) as never,
     insights_root: path.join(root, "insights"),
     view_root: root,
     outbox,

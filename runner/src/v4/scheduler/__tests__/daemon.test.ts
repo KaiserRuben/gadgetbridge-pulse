@@ -139,7 +139,7 @@ afterAll(async () => {
 describe("SchedulerDaemon end-to-end", () => {
   it("ticks: tier1 + night_review dispatch", async () => {
     const daemon = new SchedulerDaemon({
-      db: { prepare: () => ({ get: () => null, all: () => [] }) } as never,
+      db: (() => ({ prepare: () => ({ get: () => null, all: () => [] }) })) as never,
       insights_root: path.join(root, "insights"),
       view_root: root,
       outbox,

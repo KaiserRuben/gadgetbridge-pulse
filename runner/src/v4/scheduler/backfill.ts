@@ -59,7 +59,6 @@ export async function runV4Backfill(opts: BackfillOptions): Promise<BackfillResu
     );
   }
 
-  const db = openDb();
   const outbox = new Outbox({ pi_base_url: piBaseUrl });
   const reader = new ViewStateReader({
     view_root: config.insightsRoot,
@@ -73,7 +72,7 @@ export async function runV4Backfill(opts: BackfillOptions): Promise<BackfillResu
     const t0 = Date.now();
     log.info("v4-backfill", `--- ${target} ---`);
     const daemon = new SchedulerDaemon({
-      db,
+      db: openDb, // rotation-aware getter — see DaemonOptions.db
       insights_root: config.insightsRoot,
       view_root: config.insightsRoot,
       outbox,

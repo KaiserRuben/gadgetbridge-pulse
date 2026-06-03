@@ -56,8 +56,6 @@ export async function startV4Daemon(opts: RunV4DaemonOptions = {}): Promise<Daem
   const debounceMs = opts.watcherDebounceMs ?? 2_000;
   const pollMs = opts.watcherPollMs ?? 60_000;
 
-  const db = openDb();
-
   const piBaseUrl = opts.piBaseUrl ?? process.env.PULSE_PI_BASE_URL ?? null;
 
   const outbox = new Outbox({
@@ -65,7 +63,8 @@ export async function startV4Daemon(opts: RunV4DaemonOptions = {}): Promise<Daem
   });
 
   const daemon = new SchedulerDaemon({
-    db,
+    // Pass the rotation-aware getter, NOT a captured handle — see DaemonOptions.db.
+    db: openDb,
     insights_root: config.insightsRoot,
     view_root: config.insightsRoot, // view tree sits under insightsRoot/view/
     outbox,

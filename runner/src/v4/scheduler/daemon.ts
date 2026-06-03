@@ -56,7 +56,16 @@ const MAX_SLOTS_PER_TICK = 4;
 const TIER1_TTL_MS = 5 * 60 * 1000;
 
 export interface DaemonOptions {
-  db: Database.Database;
+  /**
+   * Rotation-aware handle GETTER, not a captured handle. The global `db()`
+   * closes and reopens the shared SQLite handle whenever Gadgetbridge.db
+   * rotates (constant, as the phone syncs over Syncthing). A handle captured
+   * once would be closed out from under the daemon by the next `db()` caller
+   * (e.g. drainEvents), making every subsequent tick throw "database
+   * connection is not open". Call it fresh per use so each tick gets the live
+   * handle. Do NOT collapse this back to a `Database.Database`.
+   */
+  db: () => Database.Database;
   insights_root: string;
   view_root: string;
   outbox: Outbox;
@@ -94,7 +103,7 @@ export interface TickReport {
 }
 
 export class SchedulerDaemon {
-  private readonly db: Database.Database;
+  private readonly db: () => Database.Database;
   private readonly insightsRoot: string;
   private readonly viewRoot: string;
   private readonly outbox: Outbox;
@@ -124,7 +133,7 @@ export class SchedulerDaemon {
     this.tier1Builder = opts.buildTier1 ?? ((periodKey, now) =>
       defaultBuildTier1({
         period_key: periodKey,
-        db: this.db,
+        db: this.db(),
         insights_root: this.insightsRoot,
         tz: this.tz,
         now,
@@ -228,7 +237,7 @@ export class SchedulerDaemon {
             period_key: periodKey,
             scope: reg.scope,
             tz: this.tz,
-            db: this.db,
+            db: this.db(),
             insights_root: this.insightsRoot,
             view_root: this.viewRoot,
             pi_base_url: this.piBaseUrl ?? undefined,
@@ -387,7 +396,7 @@ export class SchedulerDaemon {
         period_key: periodKey,
         scope: reg.scope,
         tz: this.tz,
-        db: this.db,
+        db: this.db(),
         insights_root: this.insightsRoot,
         view_root: this.viewRoot,
         pi_base_url: this.piBaseUrl ?? undefined,
