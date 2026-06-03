@@ -1,23 +1,25 @@
 /**
  * Event subscribers — pipeline work attached to bus events.
  *
- * Per-cluster wiring:
- *   sleep_complete   → sleep + recovery clusters (both depend on overnight
- *                      HRV / RHR / SpO₂ landing with the wake row)
- *   workout_complete → activity cluster
- *   day_end          → v2 full pipeline + v3 full (synthesis + sentinel)
- *   manual           → same as day_end
+ * The daily prose (v2) and the sleep/recovery/morning/activity v3 clusters +
+ * v3 synthesis are now produced by the v4 view-state pipeline (the dashboard
+ * reads view-state, not these JSONs), so they are no longer run here. What
+ * remains event-driven:
+ *   sleep_complete   → PWA notify (sleep insight now lives in view-state)
+ *   workout_complete → training cluster (training/page.tsx still reads it) + notify
+ *   day_end / manual → nutrition cluster finalize (day_complete)
+ *   meal_*           → nutrition reconcile / day-aggregate
+ *
+ * Facts, rules, and alarms (non-LLM) are written by the chokidar live tick
+ * (`runDaily(..., { liveOnly: true })` in dispatcher.ts), independent of these
+ * handlers — so removing the legacy LLM stages here does not affect them.
  *
  * Bus serialises per periodKey, so multiple events on the same date queue
- * behind one another and the GPU stays single-tenant. Different periodKeys
- * may proceed concurrently, but the Ollama server itself enforces a single
- * generation lane in practice.
+ * behind one another and the GPU stays single-tenant.
  */
 
 import { log } from "../logger.ts";
-import { isDailyFinalised, isV3Finalised } from "../period.ts";
-import { runDaily } from "../v2-orchestrator.ts";
-import { runV3, runV3Cluster, type V3Cluster } from "../v3-orchestrator.ts";
+import { runV3Cluster, type V3Cluster } from "../v3-orchestrator.ts";
 import { runNutritionCluster } from "../v3/packagers/nutrition.ts";
 import { reconcileMeals } from "../nutrition/reconciler.ts";
 import { pushNotify } from "../ingest/client.ts";
@@ -45,22 +47,17 @@ async function runCluster(cluster: V3Cluster, periodKey: string): Promise<void> 
   ).catch(() => undefined); // runStage already records the failure
 }
 
+function parseIso(v: unknown): number | null {
+  if (typeof v !== "string") return null;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? t : null;
+}
+
 async function onSleepComplete(ev: PulseEvent): Promise<void> {
-  log.info(
-    "sub",
-    `sleep_complete wake=${ev.payload.wake_iso ?? "?"} → sleep+recovery+morning`,
-  );
-  await runCluster("sleep", ev.periodKey);
-  await runCluster("recovery", ev.periodKey);
-  // Morning briefing reads from the just-written sleep + recovery insights
-  // (plus the training plan + pain history + lever math), so it must
-  // sequentially follow the two clusters above. Bus serialisation per
-  // periodKey already prevents concurrent runs on the same date.
-  await runCluster("morning", ev.periodKey);
-  // Notify after the sleep+recovery chain settles. Duration derived from
-  // bedtime/wake stamps in the bus payload; deep/rem stay null here (the
-  // renderer's fallback handles that gracefully — body becomes just the
-  // "Schlaf Xh Ymin" header).
+  log.info("sub", `sleep_complete wake=${ev.payload.wake_iso ?? "?"} → notify`);
+  // The sleep / recovery / morning insights are now produced by the v4
+  // view-state pipeline. This handler only fires the PWA push. Duration is
+  // derived from the bedtime/wake stamps in the bus payload.
   const bed = parseIso(ev.payload.bedtime_iso);
   const wake = parseIso(ev.payload.wake_iso);
   const totalMin =
@@ -74,26 +71,17 @@ async function onSleepComplete(ev: PulseEvent): Promise<void> {
   }).catch((err) => log.warn("sub", `pushNotify sleep: ${err}`));
 }
 
-function parseIso(v: unknown): number | null {
-  if (typeof v !== "string") return null;
-  const t = Date.parse(v);
-  return Number.isFinite(t) ? t : null;
-}
-
 async function onWorkoutComplete(ev: PulseEvent): Promise<void> {
   log.info(
     "sub",
-    `workout_complete duration=${ev.payload.duration_min ?? "?"}min → activity+training`,
+    `workout_complete duration=${ev.payload.duration_min ?? "?"}min → training`,
   );
-  await runCluster("activity", ev.periodKey);
-  // Training cluster fires alongside activity so a completed gym session
-  // surfaces both wearable-derived activity KPIs and plan-aware quality
-  // commentary (post-session). The packager picks up the just-finished
-  // ActualSession via the PULSE_ACTUAL_SESSION table.
+  // Training cluster STAYS: training/page.tsx still reads training_insight.json.
+  // (Wearable activity KPIs now come from the v4 view-state pipeline.) The
+  // packager picks up the just-finished ActualSession via PULSE_ACTUAL_SESSION.
   await runCluster("training", ev.periodKey);
-  // Notify when both clusters have settled. dedupe keyed on the workout end
-  // stamp so two workouts on the same day each get their own ping. Numbers
-  // here are coarse — the Pi-side renderer composes a German one-liner.
+  // Notify once the cluster settles. dedupe keyed on the workout end stamp so
+  // two workouts on the same day each get their own ping.
   const endIso = typeof ev.payload.end_iso === "string" ? ev.payload.end_iso : "";
   void pushNotify({
     topic: "workout_complete",
@@ -110,63 +98,11 @@ async function onWorkoutComplete(ev: PulseEvent): Promise<void> {
 }
 
 async function onDayEnd(ev: PulseEvent): Promise<void> {
-  const v2Done = isDailyFinalised(ev.periodKey);
-  const v3Done = isV3Finalised(ev.periodKey);
-  if (v2Done && v3Done) {
-    log.info("sub", "day_end already final, skip");
-    return;
-  }
-  log.info("sub", `day_end v2=${v2Done ? "done" : "pending"} v3=${v3Done ? "done" : "pending"}`);
-  // v2 first (writes the canonical daily.json + sentinel). v3 second so the
-  // synthesis sees end-of-day numbers and any earlier cluster refreshes.
-  //
-  // We capture the daily's headline/action here so the notify post-step
-  // below can use the Stage 4 prose verbatim (it's already German,
-  // observational, and length-bounded by the schema).
-  // The closure inside `runStage` assigns to these; TS otherwise narrows the
-  // outer binding to the literal `null` because the assignment lives inside
-  // an awaited async lambda that the analyser doesn't trace.
-  let v2Headline = null as string | null;
-  let v2ActionTiny = null as string | null;
-  let v2Ok = false as boolean;
-  if (!v2Done) {
-    await runStage({ cluster: "v2", key: ev.periodKey, tag: "v2" }, async () => {
-      const v2 = await runDaily(ev.periodKey, {});
-      if (!v2.ok) {
-        log.error("sub", `v2 failed: ${v2.error}`);
-        throw new Error(v2.error ?? "v2 failed");
-      }
-      log.info(
-        "sub",
-        `v2 done pipeline=${v2.bundle.pipeline_status} verify=${v2.verify.ok ? "ok" : "fail"}`,
-      );
-      v2Ok =
-        v2.verify.ok &&
-        (v2.bundle.pipeline_status === "ok" || v2.bundle.pipeline_status === "live");
-      v2Headline = v2.daily.headline;
-      v2ActionTiny = v2.daily.action?.tiny ?? null;
-    }).catch(() => undefined);
-  }
-  if (!v3Done) {
-    await runStage({ cluster: "v3", key: ev.periodKey, tag: "v3" }, async () => {
-      try {
-        const v3 = await runV3({ periodKey: ev.periodKey });
-        if (v3.ok) {
-          log.info("sub", `v3 done ${v3.totalMs}ms`);
-        } else {
-          log.error("sub", `v3 fail ${v3.totalMs}ms — ${v3.errors.join("|") || "?"}`);
-          throw new Error(v3.errors.join("|") || "v3 failed");
-        }
-      } catch (err) {
-        log.error("sub", `v3 crashed: ${(err as Error).message}`);
-        throw err;
-      }
-    }).catch(() => undefined);
-  }
-
-  // Nutrition cluster runs after v3 — day_complete=true means Stage C marks
-  // the insight `complete`. Standalone of v3 (doesn't share its completion
-  // log) so a missing classified meal photo doesn't block the rest of v3.
+  // Daily prose (v2) + v3 synthesis/cluster insights moved to the v4
+  // view-state pipeline. The day_end hook now only finalizes the nutrition
+  // insight (day_complete=true marks Stage C complete). Facts/rules/alarms are
+  // written by the chokidar live tick, not here.
+  log.info("sub", `day_end → nutrition finalize ${ev.periodKey}`);
   await runStage(
     { cluster: "nutrition", key: ev.periodKey, tag: "nutrition" },
     async () => {
@@ -182,35 +118,6 @@ async function onDayEnd(ev: PulseEvent): Promise<void> {
       }
     },
   ).catch(() => undefined);
-
-  // Finalize notification. Headline + action.tiny are Stage 4 prose (German,
-  // observational, length-capped by schema). The Pi's renderer guards
-  // against exclamation/emoji and falls back to the deterministic context
-  // path if either field violates the rule.
-  if (v2Ok && (v2Headline || v2ActionTiny)) {
-    const title = v2Headline?.trim() || "Tag fertig";
-    const body = v2ActionTiny?.trim() || v2Headline?.trim() || "";
-    void pushNotify({
-      topic: "day_finalized",
-      periodKey: ev.periodKey,
-      dedupeKey: `day_finalized:${ev.periodKey}`,
-      hint: body
-        ? {
-            topic: "day_finalized",
-            title: title.slice(0, 40),
-            body: body.slice(0, 90),
-            url: `/?d=${ev.periodKey}`,
-            dedupeKey: `day_finalized:${ev.periodKey}`,
-          }
-        : undefined,
-      context: {
-        headline: v2Headline ?? undefined,
-        next_action: v2ActionTiny ?? undefined,
-      },
-      url: `/?d=${ev.periodKey}`,
-      priority: "normal",
-    }).catch((err) => log.warn("sub", `pushNotify day_finalized: ${err}`));
-  }
 }
 
 function onManual(ev: PulseEvent): Promise<void> {
@@ -220,14 +127,13 @@ function onManual(ev: PulseEvent): Promise<void> {
 
 // ── Nutrition events ─────────────────────────────────────────────────────────
 //
-// `meal_logged_pending` is now a wake-up hint for the reconciler — the Pi
-// emits it after the upload route inserts a row (if/when the optional
-// webhook is wired). The reconciler itself drains pulse.db on a short tick
-// regardless, so this handler is a latency optimisation, not the queue.
+// `meal_logged_pending` is a wake-up hint for the reconciler — the reconciler
+// also drains pulse.db on a short tick regardless, so this is a latency
+// optimisation, not the queue.
 //
-// `meal_classified` / `meal_edited` run the day-level multi-image
-// aggregator (debounced via the bus's per-periodKey queue) so the
-// dashboard's day_pattern stays fresh without spamming the GPU.
+// `meal_classified` / `meal_edited` run the day-level multi-image aggregator
+// (debounced via the bus's per-periodKey queue) so the dashboard's nutrition
+// view stays fresh without spamming the GPU.
 
 async function onMealLoggedPending(_ev: PulseEvent): Promise<void> {
   await reconcileMeals();
