@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "../db";
+import { sportName } from "../workouts/sport-names";
 
 /**
  * HUAWEI_WORKOUT_* schema (verified against the live DB).
@@ -36,7 +37,7 @@ export const WORKOUT_TYPES: Record<number, { label: string; icon: string }> = {
 };
 
 export function workoutTypeLabel(t: number): string {
-  return WORKOUT_TYPES[t]?.label ?? `Typ ${t}`;
+  return WORKOUT_TYPES[t]?.label ?? sportName(t);
 }
 
 export function workoutTypeIcon(t: number): string {
@@ -71,7 +72,7 @@ export function classifyWorkout(opts: {
   durationSec: number;
   elevationGain: number | null;
 }): { type: number; label: string; icon: string; reclassified: boolean } {
-  const orig = WORKOUT_TYPES[opts.type] ?? { label: `Typ ${opts.type}`, icon: "Activity" };
+  const orig = WORKOUT_TYPES[opts.type] ?? { label: sportName(opts.type), icon: "Activity" };
   // Only reclassify when device says outdoor-run-ish.
   if (opts.type !== 2 && opts.type !== 4) {
     return { type: opts.type, label: orig.label, icon: orig.icon, reclassified: false };
