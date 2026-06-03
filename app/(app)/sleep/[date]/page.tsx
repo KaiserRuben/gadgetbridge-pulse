@@ -1,16 +1,14 @@
 import "server-only";
-import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { unstable_noStore as noStore } from "next/cache";
 
-import { sleepWindowForDate, addDays } from "@/lib/time";
-import { getSleepStages, getSleepStats, getStageDurations, getApneaEvents } from "@/lib/queries/sleep";
-import type { FactsBundleV2 } from "@/lib/types/generated";
+import { sleepWindowForDate } from "@/lib/time";
+import { getSleepStages, getStageDurations, getApneaEvents } from "@/lib/queries/sleep";
+import { readViewState } from "@/lib/view-state/fetcher";
+import { detailToday, detailSeries, detailDates } from "@/lib/view-state/detail";
+import type { ViewStateDaily } from "@/runner/v4/types.ts";
 import { fmtInt } from "@/lib/format";
 
 import { DomainChrome } from "@/components/domain/domain-chrome";
-import { InsightSection } from "@/components/domain/insight-section";
-import { loadSleepInsight } from "@/lib/v3-loaders";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -20,51 +18,41 @@ import { Sparkline } from "@/components/charts/sparkline";
 import { BandStrip } from "@/components/charts/band-strip";
 import { FadeRise } from "@/components/motion/fade-rise";
 
-const SYNC_ROOT = process.env.PULSE_ROOT ?? "./pulse";
-const INSIGHTS_ROOT = process.env.INSIGHTS_ROOT ?? path.join(SYNC_ROOT, "insights");
-
 export default async function SleepDetail({ params }: { params: Promise<{ date: string }> }) {
   noStore();
   const { date } = await params;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
 
   const sw = sleepWindowForDate(date);
-  const dates14 = Array.from({ length: 14 }, (_, i) => addDays(date, -(13 - i)));
 
-  const [stats, stages, stageDurs, apnea, facts14, sleepInsight] = await Promise.all([
-    Promise.resolve(getSleepStats(sw)),
+  // Raw telemetry (hypnogram shape, stage durations, apnea events) stays a
+  // direct DB read — per-minute sensor data that does not belong in the synced
+  // view doc. Everything derived comes from the view-state tier1.detail block.
+  const [stages, stageDurs, apnea, view] = await Promise.all([
     Promise.resolve(getSleepStages(sw)),
     Promise.resolve(getStageDurations(sw)),
     Promise.resolve(getApneaEvents(sw)),
-    Promise.all(dates14.map(loadFacts)),
-    loadSleepInsight(date),
+    readViewState(date) as Promise<ViewStateDaily | null>,
   ]);
 
-  const tstSeries = facts14.map((f) => f?.sleep?.metrics?.tst_min ?? null);
-  const effSeries = facts14.map((f) => f?.sleep?.metrics?.sleep_efficiency_pct ?? null);
-  const remSeries = facts14.map((f) => f?.sleep?.metrics?.rem_min ?? null);
-  const deepSeries = facts14.map((f) => f?.sleep?.metrics?.deep_min ?? null);
-  const today = facts14[13]?.sleep?.metrics ?? null;
+  const m = (id: string) => detailToday(view, `sleep.${id}`);
+  const effSeries = detailSeries(view, "sleep.sleep_efficiency_pct");
+  const dates14 = detailDates(view, "sleep.sleep_efficiency_pct");
 
   const stripItems = dates14.map((d, i) => ({
     date: d,
-    band: bandFor(facts14[i]?.sleep?.metrics?.sleep_efficiency_pct ?? null),
-    score: facts14[i]?.sleep?.metrics?.sleep_efficiency_pct ?? null,
+    band: bandFor(effSeries[i]),
+    score: effSeries[i],
   }));
 
   const totalSleep = stageDurs[1] + stageDurs[2] + stageDurs[3];
 
   return (
     <div className="flex flex-col gap-6">
-      <DomainChrome
-        domainLabel="Schlaf"
-        date={date}
-        hrefBase="/sleep"
-        icon="Moon"
-      />
+      <DomainChrome domainLabel="Schlaf" date={date} hrefBase="/sleep" icon="Moon" />
 
-      <div className="hidden md:flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="hidden items-center justify-between gap-3 md:flex">
+        <div className="flex min-w-0 items-center gap-3">
           <span className="eyebrow shrink-0">Letzte 14 Tage</span>
           <BandStrip items={stripItems} active={date} hrefBase="/sleep/" size={22} />
         </div>
@@ -72,26 +60,18 @@ export default async function SleepDetail({ params }: { params: Promise<{ date: 
       </div>
 
       <FadeRise>
-        <InsightSection insight={sleepInsight} domainLabel="Schlaf" />
-      </FadeRise>
-
-      <FadeRise>
         <Card glow="sleep">
-          <CardBody className="p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-center">
+          <CardBody className="grid grid-cols-1 items-center gap-6 p-5 lg:grid-cols-[auto_1fr] lg:p-6">
             <StageDonut durations={stageDurs} size={180} />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <Stat label="Gesamt"   value={fmtH(totalSleep)} />
-              <Stat label="Tief"     value={fmtH(stageDurs[3])} />
-              <Stat label="REM"      value={fmtH(stageDurs[2])} />
-              <Stat label="Wach"     value={fmtH(stageDurs[4])} />
-              {stats && (
-                <>
-                  <Stat label="Effizienz" value={`${stats.efficiency}`} unit="%" />
-                  <Stat label="Latenz"    value={fmtH(stats.latencyMin)} />
-                  <Stat label="HRV"       value={fmtInt(stats.avgHrv)} unit="ms" />
-                  <Stat label="Atem"      value={(stats.avgBreathRate || 0).toFixed(1)} unit="bpm" />
-                </>
-              )}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Stat label="Gesamt" value={fmtH(totalSleep)} />
+              <Stat label="Tief" value={fmtH(stageDurs[3])} />
+              <Stat label="REM" value={fmtH(stageDurs[2])} />
+              <Stat label="Wach" value={fmtH(stageDurs[4])} />
+              <Stat label="Effizienz" value={fmtNum(m("sleep_efficiency_pct"))} unit="%" />
+              <Stat label="Latenz" value={fmtMinH(m("sleep_latency_min"))} />
+              <Stat label="HRV" value={fmtNum(m("rmssd_ms"), fmtInt)} unit="ms" />
+              <Stat label="Atem" value={fmtNum(m("breath_rate_mean"), (v) => v.toFixed(1))} unit="bpm" />
             </div>
           </CardBody>
         </Card>
@@ -107,30 +87,36 @@ export default async function SleepDetail({ params }: { params: Promise<{ date: 
 
       <Section eyebrow="Nachts" title="Atemwege & Schlaf-Puls">
         <Card variant="soft">
-          <CardBody className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Ruhepuls Schlaf" value={today?.rhr_sleep_bpm != null ? Math.round(today.rhr_sleep_bpm) : "—"} unit="bpm" />
-            <Stat label="HR min/max"      value={today?.hr_min_sleep != null && today?.hr_max_sleep != null ? `${Math.round(today.hr_min_sleep)}–${Math.round(today.hr_max_sleep)}` : "—"} unit="bpm" />
-            <Stat label="SpO₂ min"        value={today?.spo2_min_pct != null ? Math.round(today.spo2_min_pct) : "—"} unit="%" />
-            <Stat label="Atem"            value={today?.breath_rate_mean != null ? today.breath_rate_mean.toFixed(1) : "—"} unit="/min" />
-            <Stat label="Aufwacher"       value={today?.wake_count != null ? today.wake_count : "—"} />
-            <Stat label="RDI"             value={today?.rdi != null ? today.rdi.toFixed(1) : "—"} />
-            <Stat label="Apnoe-Index"     value={today?.apnea_max_level != null ? today.apnea_max_level : "—"} />
-            <Stat label="Apnoe-Ereignisse" value={today?.apnea_events_count != null ? today.apnea_events_count : "—"} />
+          <CardBody className="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4">
+            <Stat label="Ruhepuls Schlaf" value={fmtNum(m("rhr_sleep_bpm"), Math.round)} unit="bpm" />
+            <Stat
+              label="HR min/max"
+              value={
+                m("hr_min_sleep") != null && m("hr_max_sleep") != null
+                  ? `${Math.round(m("hr_min_sleep")!)}–${Math.round(m("hr_max_sleep")!)}`
+                  : "—"
+              }
+              unit="bpm"
+            />
+            <Stat label="SpO₂ min" value={fmtNum(m("spo2_min_pct"), Math.round)} unit="%" />
+            <Stat label="Atem" value={fmtNum(m("breath_rate_mean"), (v) => v.toFixed(1))} unit="/min" />
+            <Stat label="Aufwacher" value={fmtNum(m("wake_count"))} />
+            <Stat label="RDI" value={fmtNum(m("rdi"), (v) => v.toFixed(1))} />
+            <Stat label="Apnoe-Index" value={fmtNum(m("apnea_max_level"))} />
+            <Stat label="Apnoe-Ereignisse" value={fmtNum(m("apnea_events_count"))} />
           </CardBody>
         </Card>
       </Section>
 
       <Section eyebrow="Trend" title="14 Tage">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <TrendTile label="Gesamtschlaf" series={tstSeries} unit="min" duration tone="sleep" />
-          <TrendTile label="Effizienz"   series={effSeries} unit="%"   tone="sleep" />
-          <TrendTile label="REM"          series={remSeries} unit="min" duration tone="sleep" />
-          <TrendTile label="Tief"         series={deepSeries} unit="min" duration tone="sleep" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <TrendTile label="Gesamtschlaf" series={detailSeries(view, "sleep.tst_min")} duration />
+          <TrendTile label="Effizienz" series={effSeries} unit="%" />
+          <TrendTile label="REM" series={detailSeries(view, "sleep.rem_min")} duration />
+          <TrendTile label="Tief" series={detailSeries(view, "sleep.deep_min")} duration />
         </div>
-        {/* Compact band strip lives at the top of the page now; bottom
-           variant kept for mobile where the top strip is hidden. */}
         <Card variant="soft" className="mt-3 md:hidden">
-          <CardBody className="p-5 overflow-x-auto">
+          <CardBody className="overflow-x-auto p-5">
             <BandStrip items={stripItems} hrefBase="/sleep/" active={date} />
           </CardBody>
         </Card>
@@ -160,12 +146,14 @@ export default async function SleepDetail({ params }: { params: Promise<{ date: 
 }
 
 function TrendTile({
-  label, series, unit, tone, duration = false,
+  label,
+  series,
+  unit,
+  duration = false,
 }: {
   label: string;
-  series: (number | null)[];
+  series: Array<number | null>;
   unit?: string;
-  tone: "sleep";
   /** Series values are minutes — render as h:mm and skip the raw unit suffix. */
   duration?: boolean;
 }) {
@@ -180,38 +168,31 @@ function TrendTile({
     const abs = Math.abs(v);
     if (abs < 60) return `${Math.round(abs)}m`;
     const h = Math.floor(abs / 60);
-    const m = Math.round(abs % 60);
-    return m === 0 ? `${h}h` : `${h}:${String(m).padStart(2, "0")}`;
+    const mm = Math.round(abs % 60);
+    return mm === 0 ? `${h}h` : `${h}:${String(mm).padStart(2, "0")}`;
   };
   return (
     <Card>
-      <CardBody className="p-4 flex flex-col gap-2 min-h-[110px]">
+      <CardBody className="flex min-h-[110px] flex-col gap-2 p-4">
         <div className="flex items-baseline justify-between">
           <span className="eyebrow !text-[10px]">{label}</span>
           {delta != null && (
-            <span className={`num-mono text-[0.6875rem] ${delta > 0 ? "text-[var(--color-band-up)]" : delta < 0 ? "text-[var(--color-band-down)]" : "text-subtle"}`}>
-              {delta > 0 ? "+" : delta < 0 ? "−" : ""}{fmtDelta(delta)}
+            <span
+              className={`num-mono text-[0.6875rem] ${delta > 0 ? "text-[var(--color-band-up)]" : delta < 0 ? "text-[var(--color-band-down)]" : "text-subtle"}`}
+            >
+              {delta > 0 ? "+" : delta < 0 ? "−" : ""}
+              {fmtDelta(delta)}
             </span>
           )}
         </div>
         <div className="flex items-baseline gap-1">
           <span className="num text-[1.375rem] font-semibold leading-none">{last != null ? fmtMain(last) : "—"}</span>
-          {showUnit && last != null && <span className="text-subtle text-[0.6875rem] num-mono">{unit}</span>}
+          {showUnit && last != null && <span className="text-subtle num-mono text-[0.6875rem]">{unit}</span>}
         </div>
-        <Sparkline values={clean.slice(-10)} tone={tone} width={160} height={28} className="mt-auto" />
+        <Sparkline values={series.slice(-10)} tone="sleep" width={160} height={28} className="mt-auto" />
       </CardBody>
     </Card>
   );
-}
-
-async function loadFacts(date: string): Promise<FactsBundleV2 | null> {
-  const p = path.join(INSIGHTS_ROOT, "daily", date, "_facts.json");
-  try {
-    const txt = await readFile(p, "utf8");
-    return JSON.parse(txt) as FactsBundleV2;
-  } catch {
-    return null;
-  }
 }
 
 function bandFor(eff: number | null): "above_usual" | "below_usual" | "steady" | null {
@@ -221,9 +202,18 @@ function bandFor(eff: number | null): "above_usual" | "below_usual" | "steady" |
   return "steady";
 }
 
+function fmtNum(v: number | null, fmt: (n: number) => string | number = (n) => n): string {
+  if (v == null) return "—";
+  return String(fmt(v));
+}
+
 function fmtH(min: number): string {
   if (min < 60) return `${Math.round(min)}m`;
   const h = Math.floor(min / 60);
-  const m = Math.round(min % 60);
-  return `${h}:${String(m).padStart(2, "0")}`;
+  const mm = Math.round(min % 60);
+  return `${h}:${String(mm).padStart(2, "0")}`;
+}
+
+function fmtMinH(v: number | null): string {
+  return v == null ? "—" : fmtH(v);
 }
