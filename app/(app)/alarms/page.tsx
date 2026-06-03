@@ -7,6 +7,13 @@ import { loadAlarms, loadAlarmState, getCurrentMonthKey } from "@/lib/insights";
 import type { AlarmEvent } from "@/lib/types/generated";
 import { alarmTargetUrl } from "@/lib/alarm-target";
 import { tSeverity, tGate } from "@/lib/i18n";
+import { readViewState } from "@/lib/view-state/fetcher";
+import { todayKey } from "@/lib/time";
+import type {
+  AnomalyEvent,
+  AnomalyExplainSlotEntry,
+  SlotStatus,
+} from "@/runner/v4/types.ts";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
@@ -14,11 +21,17 @@ import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { ClearAllButton } from "./clear-all-button";
+import { RequestExplanationButton } from "./request-explanation-button";
 
 export default async function AlarmsPage() {
   noStore();
   const monthKey = getCurrentMonthKey();
-  const [alarms, state] = await Promise.all([loadAlarms(monthKey), loadAlarmState()]);
+  const todayPeriod = todayKey();
+  const [alarms, state, view] = await Promise.all([
+    loadAlarms(monthKey),
+    loadAlarmState(),
+    readViewState(todayPeriod).catch(() => null),
+  ]);
 
   const events = alarms?.events ?? [];
   const muted = new Set(state?.muted_topics ?? []);
@@ -38,6 +51,11 @@ export default async function AlarmsPage() {
 
   active.sort((a, b) => Date.parse(b.fired_at) - Date.parse(a.fired_at));
 
+  const anomalyExplains: AnomalyExplainSlotEntry[] = view?.events.anomaly_explain ?? [];
+  const tier1Anomalies: AnomalyEvent[] = view?.tier1.context.anomalies_today ?? [];
+  const explainedObsIds = new Set(anomalyExplains.map((e) => e.observation_id));
+  const unexplained = tier1Anomalies.filter((a) => !explainedObsIds.has(a.code));
+
   return (
     <div className="flex flex-col gap-8">
       <FadeRise>
@@ -46,6 +64,44 @@ export default async function AlarmsPage() {
           <h1 className="text-hero">Signale</h1>
         </div>
       </FadeRise>
+
+      {unexplained.length > 0 && (
+        <Section
+          eyebrow={`Heute · ${todayPeriod}`}
+          title={`${unexplained.length} unerklärt`}
+        >
+          <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {unexplained.map((a) => (
+              <UnexplainedRow key={a.code} anomaly={a} periodKey={todayPeriod} />
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {anomalyExplains.length > 0 && (
+        <Section
+          eyebrow="Erklärungen"
+          title={`${anomalyExplains.length} Anfragen`}
+        >
+          <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {anomalyExplains
+              .slice()
+              .sort((a, b) =>
+                (b.scheduled_for ?? "").localeCompare(a.scheduled_for ?? ""),
+              )
+              .map((e) => (
+                <ExplainRow
+                  key={e.event_id}
+                  entry={e}
+                  periodKey={todayPeriod}
+                  tier1Anomaly={
+                    tier1Anomalies.find((a) => a.code === e.observation_id) ?? null
+                  }
+                />
+              ))}
+          </ul>
+        </Section>
+      )}
 
       <Section
         eyebrow="Aktiv"
@@ -122,6 +178,133 @@ function AlarmRow({ ev, muted = false }: { ev: AlarmEvent; muted?: boolean }) {
       </Link>
     </li>
   );
+}
+
+function UnexplainedRow({
+  anomaly,
+  periodKey,
+}: {
+  anomaly: AnomalyEvent;
+  periodKey: string;
+}) {
+  const tone =
+    anomaly.severity === "critical" ? "s1" : anomaly.severity === "warn" ? "s2" : "s3";
+  return (
+    <li>
+      <Card variant="surface">
+        <CardBody className="p-4 flex items-start gap-3">
+          <Pill tone={tone} size="sm">{anomaly.severity}</Pill>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2 justify-between">
+              <span className="text-[0.9375rem] font-medium">{anomaly.headline_de}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-caption">
+              <span>{anomaly.metric}</span>
+              {anomaly.value != null && (
+                <>
+                  <span className="text-faint">·</span>
+                  <span className="num-mono">{anomaly.value}</span>
+                </>
+              )}
+            </div>
+            <p className="text-caption text-muted">{anomaly.message_de}</p>
+            <div className="pt-1">
+              <RequestExplanationButton
+                periodKey={periodKey}
+                eventId={anomaly.code}
+                observationId={anomaly.code}
+              />
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+    </li>
+  );
+}
+
+function ExplainRow({
+  entry,
+  periodKey,
+  tier1Anomaly,
+}: {
+  entry: AnomalyExplainSlotEntry;
+  periodKey: string;
+  tier1Anomaly: AnomalyEvent | null;
+}) {
+  const tone =
+    entry.status === "errored" || entry.status === "missed"
+      ? "down"
+      : entry.status === "fresh" || entry.status === "aging"
+        ? "up"
+        : entry.status === "computing" || entry.status === "scheduled"
+          ? "activity"
+          : "neutral";
+  const showRetry =
+    entry.status === "errored" ||
+    entry.status === "missed" ||
+    entry.status === "stale" ||
+    entry.status === "abstained";
+  const headline =
+    entry.payload?.headline ??
+    tier1Anomaly?.headline_de ??
+    labelize(entry.observation_id);
+  const summary = entry.payload?.summary_short ?? tier1Anomaly?.message_de ?? null;
+  return (
+    <li>
+      <Card variant="surface">
+        <CardBody className="p-4 flex items-start gap-3">
+          <Pill tone={tone} size="sm">{tStatus(entry.status)}</Pill>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2 justify-between">
+              <span className="text-[0.9375rem] font-medium">{headline}</span>
+              <span className="text-caption shrink-0 num-mono">
+                {fmtClock(entry.scheduled_for)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-caption">
+              <span className="num-mono">{entry.observation_id}</span>
+              {entry.request_count > 0 && (
+                <>
+                  <span className="text-faint">·</span>
+                  <span>{entry.request_count}× angefragt</span>
+                </>
+              )}
+              {entry.error && (
+                <>
+                  <span className="text-faint">·</span>
+                  <span className="text-[var(--color-band-down)]">{entry.error.code}</span>
+                </>
+              )}
+            </div>
+            {summary && <p className="text-caption text-muted">{summary}</p>}
+            {showRetry && (
+              <div className="pt-1">
+                <RequestExplanationButton
+                  periodKey={periodKey}
+                  eventId={entry.event_id}
+                  observationId={entry.observation_id}
+                />
+              </div>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+    </li>
+  );
+}
+
+function tStatus(status: SlotStatus): string {
+  switch (status) {
+    case "scheduled": return "geplant";
+    case "computing": return "läuft";
+    case "fresh": return "frisch";
+    case "aging": return "alternd";
+    case "stale": return "veraltet";
+    case "missed": return "verpasst";
+    case "errored": return "Fehler";
+    case "abstained": return "übersprungen";
+    case "degraded": return "eingeschränkt";
+  }
 }
 
 function labelize(id: string): string {
