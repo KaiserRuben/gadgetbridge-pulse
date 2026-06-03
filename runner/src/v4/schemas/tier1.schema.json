@@ -133,6 +133,24 @@
           }
         }
       }
+    },
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["today", "series_14d"],
+      "description": "Per-domain detail for the drill pages. Namespaced '<domain>.<metric>' maps so the metric set grows without schema churn. Optional — pre-existing view docs omit it.",
+      "properties": {
+        "today": {
+          "type": "object",
+          "description": "Same-day metric values, keyed '<domain>.<metric>'.",
+          "additionalProperties": { "anyOf": [{"type": "number"}, {"type": "null"}] }
+        },
+        "series_14d": {
+          "type": "object",
+          "description": "Rolling 14-day series per metric, keyed '<domain>.<metric>'.",
+          "additionalProperties": { "$ref": "#/definitions/PointSeries" }
+        }
+      }
     }
   },
   "definitions": {

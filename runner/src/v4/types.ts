@@ -212,12 +212,26 @@ export interface Tier1Context {
   anomalies_today: AnomalyEvent[];
 }
 
+/**
+ * Per-domain detail block — the data the drill pages (sleep/activity/heart/
+ * stress/body) render. Namespaced flat maps (`"<domain>.<metric>"`) so the
+ * set can grow without a schema churn. `today` = same-day values; `series_14d`
+ * = rolling 14-day Point series per metric (nulls kept for gap days). Optional:
+ * view docs written before this field shipped simply omit it, and the UI
+ * degrades to "—".
+ */
+export interface Tier1Detail {
+  today: Record<string, number | null>;
+  series_14d: Record<string, Point[]>;
+}
+
 export interface Tier1 {
   computed_at: string;
   facts_now: FactsNow;
   kpis_today: KpisToday;
   kpis_14d: Kpis14d;
   context: Tier1Context;
+  detail?: Tier1Detail;
 }
 
 // ── ViewState meta ──────────────────────────────────────────────────────────

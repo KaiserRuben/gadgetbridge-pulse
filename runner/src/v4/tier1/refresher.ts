@@ -33,6 +33,7 @@ import type {
   Point,
   Tier1,
   Tier1Context,
+  Tier1Detail,
   FactsNow,
 } from "../types.ts";
 
@@ -59,8 +60,10 @@ export async function buildTier1(opts: BuildTier1Opts): Promise<Tier1> {
   // 3. Today KPIs derived from facts + workouts.
   const kpisToday = extractKpisToday(facts);
 
-  // 4. 14-day series from neighbor facts files.
-  const kpis14d = build14dSeries(opts.insights_root, opts.period_key);
+  // 4. 14-day neighbors (read once) → kpis_14d sparklines + per-domain detail.
+  const neighbors = readNeighbors(opts.insights_root, opts.period_key);
+  const kpis14d = build14dSeries(neighbors);
+  const detail = buildDetail(facts, neighbors);
 
   // 5. Context: day_of_week from period_key, anomalies from facts.
   const context = buildContext(opts.period_key, facts, tz);
@@ -71,6 +74,7 @@ export async function buildTier1(opts: BuildTier1Opts): Promise<Tier1> {
     kpis_today: kpisToday,
     kpis_14d: kpis14d,
     context,
+    detail,
   };
 }
 
@@ -199,17 +203,38 @@ function extractWorkouts(facts: Awaited<ReturnType<typeof buildDailyFacts>>): Kp
   }));
 }
 
-// ── kpis_14d ───────────────────────────────────────────────────────────────
+// ── kpis_14d + detail ──────────────────────────────────────────────────────
 
-function build14dSeries(insightsRoot: string, periodKey: string): Kpis14d {
+type FactsLike = ReturnType<typeof readFactsForDate>;
+interface Neighbor {
+  date: string;
+  facts: FactsLike;
+}
+
+/** Read the 14 trailing days' facts once; reused for both the sparkline
+ * series and the per-domain detail series. */
+function readNeighbors(insightsRoot: string, periodKey: string): Neighbor[] {
+  const out: Neighbor[] = [];
+  for (let back = 13; back >= 0; back--) {
+    const date = shiftDateKey(periodKey, back);
+    out.push({ date, facts: readFactsForDate(insightsRoot, date) });
+  }
+  return out;
+}
+
+function metricsOf(facts: unknown, domain: string): Record<string, number | null> {
+  const d = (facts as Record<string, unknown> | null | undefined)?.[domain];
+  const m = d && typeof d === "object" ? (d as MetricBag).metrics : undefined;
+  return (m ?? {}) as Record<string, number | null>;
+}
+
+function build14dSeries(neighbors: Neighbor[]): Kpis14d {
   const sleepQuality: Point[] = [];
   const autonomic: Point[] = [];
   const volumeLoad: Point[] = [];
   const dayScore: Point[] = [];
 
-  for (let back = 13; back >= 0; back--) {
-    const date = shiftDateKey(periodKey, back);
-    const facts = readFactsForDate(insightsRoot, date);
+  for (const { date, facts } of neighbors) {
     if (!facts) {
       sleepQuality.push({ date, value: null });
       autonomic.push({ date, value: null });
@@ -217,7 +242,7 @@ function build14dSeries(insightsRoot: string, periodKey: string): Kpis14d {
       dayScore.push({ date, value: null });
       continue;
     }
-    const s = ((facts.sleep as MetricBag | undefined)?.metrics ?? {});
+    const s = metricsOf(facts, "sleep");
     const w = (facts as unknown as { workouts?: { metrics?: { volume_load?: number | null } } }).workouts?.metrics;
     // Sleep quality proxy: efficiency_pct.
     sleepQuality.push({ date, value: numOrNull(s.sleep_efficiency_pct) });
@@ -234,6 +259,52 @@ function build14dSeries(insightsRoot: string, periodKey: string): Kpis14d {
     volume_load_series: volumeLoad,
     day_score_series: dayScore,
   };
+}
+
+/**
+ * Per-domain metric allowlist surfaced to the drill pages. Keys match
+ * `facts.<domain>.metrics`. Adding a metric here exposes it (today value +
+ * 14-day series) without any schema change — the schema's detail block uses
+ * `additionalProperties`.
+ */
+const DOMAIN_METRICS: Record<string, readonly string[]> = {
+  sleep: [
+    "tst_min", "sleep_efficiency_pct", "rmssd_ms", "rhr_sleep_bpm",
+    "rem_min", "deep_min", "light_min", "awake_min", "sleep_latency_min",
+    "sleep_score", "hr_min_sleep", "hr_max_sleep", "hr_avg_sleep",
+    "spo2_min_pct", "breath_rate_mean", "wake_count", "rdi",
+    "apnea_max_level", "apnea_events_count", "bedtime_min", "wakeup_min",
+  ],
+  cardio: ["rhr_day_bpm", "hr_mean_bpm", "hr_max_bpm", "spo2_mean_pct"],
+  activity: [
+    "steps", "calories_kcal", "distance_m", "active_minutes",
+    "sedentary_minutes",
+  ],
+  stress: ["stress_mean", "stress_max", "high_stress_minutes"],
+  body: ["weight_kg", "body_fat_pct", "bmi", "skin_temp_median", "skin_temp_delta_c"],
+};
+
+/** Same-day values + 14-day series for every allowlisted domain metric. */
+function buildDetail(
+  todayFacts: Awaited<ReturnType<typeof buildDailyFacts>>,
+  neighbors: Neighbor[],
+): Tier1Detail {
+  const today: Record<string, number | null> = {};
+  const series_14d: Record<string, Point[]> = {};
+
+  for (const [domain, keys] of Object.entries(DOMAIN_METRICS)) {
+    const todayMetrics = metricsOf(todayFacts, domain);
+    for (const k of keys) {
+      const id = `${domain}.${k}`;
+      today[id] = numOrNull(todayMetrics[k]);
+      series_14d[id] = neighbors.map(({ date, facts }) => ({
+        date,
+        value: facts ? numOrNull(metricsOf(facts, domain)[k]) : null,
+      }));
+    }
+  }
+
+  return { today, series_14d };
 }
 
 // ── context ────────────────────────────────────────────────────────────────
