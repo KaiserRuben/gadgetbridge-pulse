@@ -64,9 +64,15 @@ export interface SlotRegistryEntry {
   slot_version: string;
   /**
    * Ollama model tag for this slot. If unset, dispatcher uses COACH_MODEL.
-   * Use the big reasoning model (qwen3.6:latest) for slots that synthesize
-   * numeric arcs + z-scores; use a faster prose model (gpt-oss:20b) for
-   * slots that mostly retell a prior slot in plan/check-in form.
+   *
+   * All LLM slots use gpt-oss:20b. The synthesis slots (night_review,
+   * day_synthesis, week_synthesis) were originally on qwen3.6:latest as the
+   * "big reasoning model for numeric arcs + z-scores", but a 2026-06-03
+   * real-Ollama diagnosis proved qwen3.6 reasons correctly yet *collapses on
+   * emission* under the schema's GBNF grammar (it emitted filler — every prose
+   * field "Nachtanalyse", all KPIs 50/steady) and is far too slow (6+ min/call,
+   * json-mode timed out). gpt-oss:20b produces real grounded synthesis under
+   * the identical grammar, faster. Do NOT reassign these to qwen3.6.
    */
   model?: string;
 }
@@ -91,7 +97,7 @@ export const DAILY_SLOTS: SlotRegistryEntry[] = [
     priority: 90,
     initial_status: "scheduled",
     slot_version: "night-review/v1",
-    model: "qwen3.6:latest",
+    model: "gpt-oss:20b",
   },
   {
     slot_id: "morning_briefing",
@@ -162,7 +168,7 @@ export const DAILY_SLOTS: SlotRegistryEntry[] = [
     priority: 60,
     initial_status: "scheduled",
     slot_version: "day-synthesis/v1",
-    model: "qwen3.6:latest",
+    model: "gpt-oss:20b",
   },
 ];
 
@@ -184,7 +190,7 @@ export const WEEKLY_SLOTS: SlotRegistryEntry[] = [
     priority: 50,
     initial_status: "scheduled",
     slot_version: "week-synthesis/v1",
-    model: "qwen3.6:latest",
+    model: "gpt-oss:20b",
   },
 ];
 
