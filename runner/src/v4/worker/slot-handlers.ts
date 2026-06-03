@@ -71,6 +71,16 @@ export interface SlotHandler {
   factsHash: (pkg: unknown) => string;
   /** Which prose fields the validator should scan. (Optional override.) */
   proseFieldsToScan?: string[];
+  /**
+   * Post-validation enrichment hook. Called by the dispatcher AFTER schema
+   * and grounding validation succeed. Lets a slot inject telemetry fields
+   * (chart data, drill-only series) from the package into the payload —
+   * fields the LLM never produced but the schema declares optionally.
+   *
+   * Must return the mutated/cloned payload. Must not throw — wrap risky ops
+   * in try/catch and fall back to returning the input.
+   */
+  enrichPayload?: (payload: unknown, pkg: unknown) => unknown;
 }
 
 // ── Per-slot handlers ──────────────────────────────────────────────────────
@@ -85,6 +95,15 @@ export const NIGHT_REVIEW_HANDLER: SlotHandler = {
   buildPackage: async (ctx) => buildNightReviewPackage(ctx),
   buildUserPrompt: (pkg) => buildNightReviewUserPrompt(pkg as Parameters<typeof buildNightReviewUserPrompt>[0]),
   factsHash: (pkg) => nightReviewFactsHash(pkg as Parameters<typeof nightReviewFactsHash>[0]),
+  enrichPayload: (payload, pkg) => {
+    if (!isObj(payload)) return payload;
+    const stages = (pkg as { domain?: { stages_timeline?: unknown } } | null)?.domain
+      ?.stages_timeline;
+    if (Array.isArray(stages) && stages.length > 0) {
+      return { ...payload, stages_timeline: stages };
+    }
+    return payload;
+  },
 };
 
 export const MORNING_BRIEFING_HANDLER: SlotHandler = {
@@ -109,6 +128,15 @@ export const MIDDAY_CHECK_HANDLER: SlotHandler = {
   buildPackage: async (ctx) => buildMiddayCheckPackage(ctx),
   buildUserPrompt: (pkg) => buildMiddayCheckUserPrompt(pkg as Parameters<typeof buildMiddayCheckUserPrompt>[0]),
   factsHash: (pkg) => middayCheckFactsHash(pkg as Parameters<typeof middayCheckFactsHash>[0]),
+  enrichPayload: (payload, pkg) => {
+    if (!isObj(payload)) return payload;
+    const tel = (pkg as { domain?: { _drill_telemetry?: { stress_hourly?: unknown } } } | null)
+      ?.domain?._drill_telemetry;
+    if (tel && Array.isArray(tel.stress_hourly) && tel.stress_hourly.length === 24) {
+      return { ...payload, stress_hourly: tel.stress_hourly };
+    }
+    return payload;
+  },
 };
 
 export const EVENING_REVIEW_HANDLER: SlotHandler = {
@@ -121,6 +149,19 @@ export const EVENING_REVIEW_HANDLER: SlotHandler = {
   buildPackage: async (ctx) => buildEveningReviewPackage(ctx),
   buildUserPrompt: (pkg) => buildEveningReviewUserPrompt(pkg as Parameters<typeof buildEveningReviewUserPrompt>[0]),
   factsHash: (pkg) => eveningReviewFactsHash(pkg as Parameters<typeof eveningReviewFactsHash>[0]),
+  enrichPayload: (payload, pkg) => {
+    if (!isObj(payload)) return payload;
+    const tel = (
+      pkg as {
+        domain?: { _drill_telemetry?: { hr_today?: unknown; hr_zone_minutes?: unknown } };
+      } | null
+    )?.domain?._drill_telemetry;
+    if (!tel) return payload;
+    const next = { ...payload } as Record<string, unknown>;
+    if (Array.isArray(tel.hr_today)) next.hr_today = tel.hr_today;
+    if (Array.isArray(tel.hr_zone_minutes)) next.hr_zone_minutes = tel.hr_zone_minutes;
+    return next;
+  },
 };
 
 export const DAY_SYNTHESIS_HANDLER: SlotHandler = {
@@ -194,4 +235,8 @@ export function getSlotHandler(slot_id: SlotId): SlotHandler {
   const handler = SLOT_HANDLERS[slot_id];
   if (!handler) throw new Error(`No handler registered for slot ${slot_id}`);
   return handler;
+}
+
+function isObj(x: unknown): x is Record<string, unknown> {
+  return x != null && typeof x === "object" && !Array.isArray(x);
 }

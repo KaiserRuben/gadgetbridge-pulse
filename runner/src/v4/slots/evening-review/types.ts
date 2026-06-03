@@ -33,6 +33,18 @@ export interface EveningConfidence {
   reasoning: string;
 }
 
+/** 5-min HR bucket — `bpm_mean` is the only field the drill chart needs. */
+export interface EveningHrBucket {
+  ts_iso: string;
+  bpm_mean: number;
+}
+
+/** Minutes spent in one HR zone (Rest/Easy/Aerobic/Threshold/Max). */
+export interface EveningHrZoneMinute {
+  label: string;
+  minutes: number;
+}
+
 export interface EveningReviewPayload {
   schema_version: "evening-review/v1";
   language: "de" | "en";
@@ -47,4 +59,15 @@ export interface EveningReviewPayload {
   wind_down_suggestion: EveningWindDown | null;
   kpis: EveningKpi[];
   confidence: EveningConfidence;
+  /**
+   * Telemetry pass-through — NOT emitted by the LLM. Dispatcher injects from
+   * the package's `domain.hr_today` after validation. 5-min HR buckets from
+   * local midnight to package build time.
+   */
+  hr_today?: EveningHrBucket[];
+  /**
+   * Telemetry pass-through. Minutes-in-zone for today's HR samples. Order
+   * matches `HR_ZONES` in `lib/constants.ts`.
+   */
+  hr_zone_minutes?: EveningHrZoneMinute[];
 }

@@ -73,6 +73,21 @@
         "reasoning": { "type": "string", "minLength": 20 },
         "value": { "type": "number", "minimum": 0, "maximum": 1 }
       }
+    },
+    "stages_timeline": {
+      "description": "Telemetry pass-through (NOT emitted by LLM). Injected post-validation by the dispatcher from the package's domain.stages_timeline. Powers the hypnogram chart in the drill body.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start_iso", "end_iso", "stage", "duration_min"],
+        "properties": {
+          "start_iso": { "type": "string" },
+          "end_iso": { "type": "string" },
+          "stage": { "enum": ["light", "rem", "deep", "awake"] },
+          "duration_min": { "type": "number", "minimum": 0 }
+        }
+      }
     }
   }
 }

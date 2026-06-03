@@ -11,6 +11,21 @@
 
 export type Band = "above_usual" | "steady" | "below_usual";
 
+export type SleepStageName = "light" | "rem" | "deep" | "awake";
+
+/**
+ * One contiguous sleep-stage segment. Mirrored from
+ * `night-review/package.ts → StageSegment` so the dashboard can render the
+ * hypnogram without pulling in the packager module (Pi-side bundle stays
+ * runner-free).
+ */
+export interface NightReviewStageSegment {
+  start_iso: string;
+  end_iso: string;
+  stage: SleepStageName;
+  duration_min: number;
+}
+
 export interface NightReviewSuggestion {
   reasoning: string;
   anchor: string;
@@ -46,4 +61,11 @@ export interface NightReviewPayload {
   suggestions_today: NightReviewSuggestion[];
   kpis: NightReviewKpi[];
   confidence: NightReviewConfidence;
+  /**
+   * Telemetry pass-through — NOT emitted by the LLM. Dispatcher injects the
+   * packager's `domain.stages_timeline` after schema/grounding validation
+   * succeeds, so the drill body can render the hypnogram without a separate
+   * package fetch. Absent on slots that errored / abstained before injection.
+   */
+  stages_timeline?: NightReviewStageSegment[];
 }

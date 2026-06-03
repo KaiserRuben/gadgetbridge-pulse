@@ -128,12 +128,25 @@ export async function dispatchSlot(opts: DispatchOpts): Promise<DispatchResult> 
   const degraded = !abstained && (opts.missing_soft_deps ?? []).length > 0;
   const status: SlotStatus = abstained ? "abstained" : degraded ? "degraded" : "fresh";
 
+  // Post-validation enrichment — let the handler inject telemetry fields
+  // (chart data) from the package into the payload. Skipped on abstain
+  // since the LLM produced an empty body and the drill body short-circuits.
+  let finalPayload: unknown = final.validation.parsed;
+  if (!abstained && handler.enrichPayload && finalPayload != null) {
+    try {
+      finalPayload = handler.enrichPayload(finalPayload, pkg);
+    } catch {
+      // Enrichment failures must never fail the slot — chart-only data.
+      finalPayload = final.validation.parsed;
+    }
+  }
+
   return {
     diff: buildDiff({
       handler,
       opts,
       status,
-      payload: final.validation.parsed,
+      payload: finalPayload,
       ms,
       error: null,
       request_count_inc: invocation.attempts.length,

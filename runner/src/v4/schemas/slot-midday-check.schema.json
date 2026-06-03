@@ -59,6 +59,18 @@
         "reasoning": { "type": "string", "minLength": 20 },
         "value": { "type": "number", "minimum": 0, "maximum": 1 }
       }
+    },
+    "stress_hourly": {
+      "description": "Telemetry pass-through (NOT emitted by LLM). Injected post-validation from the package. 24 hourly stress means (null = no data).",
+      "type": "array",
+      "minItems": 24,
+      "maxItems": 24,
+      "items": {
+        "anyOf": [
+          { "type": "number", "minimum": 0, "maximum": 100 },
+          { "type": "null" }
+        ]
+      }
     }
   }
 }

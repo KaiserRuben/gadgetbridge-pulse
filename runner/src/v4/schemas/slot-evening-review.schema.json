@@ -79,6 +79,32 @@
         "reasoning": { "type": "string", "minLength": 20 },
         "value": { "type": "number", "minimum": 0, "maximum": 1 }
       }
+    },
+    "hr_today": {
+      "description": "Telemetry pass-through (NOT emitted by LLM). Injected post-validation from the package. 5-min HR buckets from midnight to package build time.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ts_iso", "bpm_mean"],
+        "properties": {
+          "ts_iso": { "type": "string" },
+          "bpm_mean": { "type": "number", "minimum": 0, "maximum": 250 }
+        }
+      }
+    },
+    "hr_zone_minutes": {
+      "description": "Telemetry pass-through. Minutes spent in each HR zone today. Order matches HR_ZONES in lib/constants.ts.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "minutes"],
+        "properties": {
+          "label": { "type": "string" },
+          "minutes": { "type": "integer", "minimum": 0 }
+        }
+      }
     }
   }
 }

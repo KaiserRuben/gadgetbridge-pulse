@@ -41,4 +41,10 @@ export interface MiddayCheckPayload {
   course_correction: MiddayCourseCorrection | null;
   next_window: string | null;
   confidence: MiddayConfidence;
+  /**
+   * Telemetry pass-through — NOT emitted by the LLM. Dispatcher injects from
+   * the package's `domain.stress_hourly` after validation. 24 hourly stress
+   * means (0..100), `null` for hours with no samples.
+   */
+  stress_hourly?: (number | null)[];
 }
