@@ -2,7 +2,10 @@ import { PushSubscribe } from "@/components/pwa/push-subscribe";
 import { BudgetMeter } from "@/components/notifications/budget-meter";
 import { NotificationHistoryList } from "@/components/notifications/history-list";
 import { TopicToggle } from "@/components/notifications/topic-toggle";
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
+import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { SettingsToggle } from "@/components/settings/SettingsToggle";
 import type { NotifyTopic } from "@/lib/notifications/types";
 
@@ -64,42 +67,56 @@ export default function NotificationsSettingsPage() {
   const { prefs, counters: c, history } = data;
 
   return (
-    <div className="flex flex-col gap-5 md:gap-6">
-      <Section eyebrow="Einstellungen" title="Benachrichtigungen">
-        <div className="flex flex-col gap-4">
-          <PushSubscribe />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Einstellungen"
+        title="Benachrichtigungen"
+        back={{ href: "/settings", label: "Einstellungen" }}
+        sub="Welche Ereignisse benachrichtigen, wann ruhig bleiben, wie oft maximal."
+      />
 
-          <SettingsToggle
-            label="Push aktiv"
-            description="Master-Schalter. Wenn aus, wird gar nichts gesendet — alle Topics darunter sind dann irrelevant."
-            checked={prefs.enabled}
-            onAction={toggleMaster}
-          />
+      <FadeRise>
+        <Section eyebrow="Einstellungen" title="Benachrichtigungen">
+          <div className="flex flex-col gap-4">
+            <PushSubscribe />
 
-          <BudgetMeter sent24h={c.sent24h} budget={c.budget} />
-        </div>
-      </Section>
-
-      <Section eyebrow="Einstellungen" title="Welche Ereignisse">
-        <div className="flex flex-col gap-2">
-          {TOPICS.map((t) => (
-            <TopicToggle
-              key={t.topic}
-              topic={t.topic}
-              label={t.label}
-              description={t.description}
-              checked={prefs.topics[t.topic]}
-              disabled={!prefs.enabled}
-              onAction={toggleTopic}
-              onTest={sendTestNotify}
+            <SettingsToggle
+              label="Push aktiv"
+              description="Master-Schalter. Wenn aus, wird gar nichts gesendet — alle Topics darunter sind dann irrelevant."
+              checked={prefs.enabled}
+              onAction={toggleMaster}
             />
-          ))}
-        </div>
-      </Section>
 
-      <Section eyebrow="Transparenz" title="Letzte Aktivität">
-        <NotificationHistoryList rows={history} />
-      </Section>
+            <BudgetMeter sent24h={c.sent24h} budget={c.budget} />
+          </div>
+        </Section>
+      </FadeRise>
+
+      <FadeRise delay={0.05}>
+        <Section eyebrow="Einstellungen" title="Welche Ereignisse">
+          <Stagger className="flex flex-col gap-2">
+            {TOPICS.map((t) => (
+              <StaggerItem key={t.topic}>
+                <TopicToggle
+                  topic={t.topic}
+                  label={t.label}
+                  description={t.description}
+                  checked={prefs.topics[t.topic]}
+                  disabled={!prefs.enabled}
+                  onAction={toggleTopic}
+                  onTest={sendTestNotify}
+                />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
+      </FadeRise>
+
+      <FadeRise delay={0.1}>
+        <Section eyebrow="Transparenz" title="Letzte Aktivität">
+          <NotificationHistoryList rows={history} />
+        </Section>
+      </FadeRise>
     </div>
   );
 }

@@ -3,7 +3,11 @@ import Link from "next/link";
 import { PushSubscribe } from "@/components/pwa/push-subscribe";
 import { Card, CardBody } from "@/components/ui/card";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
+import { FadeRise } from "@/components/motion/fade-rise";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import {
   countConfiguredClusterOverrides,
   listRegisteredClustersWithCopy,
@@ -27,94 +31,100 @@ export default function SettingsPage() {
   const remaining = Math.max(0, clusters.length - previewLabels.length);
 
   return (
-    <div className="flex flex-col gap-5 md:gap-6">
-      <Section eyebrow="Einstellungen" title="Benachrichtigungen">
-        <div className="flex flex-col gap-3">
-          <PushSubscribe />
-          <Link href="/settings/notifications" className="block">
-            <Card hoverable>
-              <CardBody className="p-4 flex items-start justify-between gap-3">
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="text-[0.9375rem] font-medium">
-                    Topics, Ruhezeiten, Tageslimit
-                  </span>
-                  <span className="text-caption text-muted">
-                    Welche Ereignisse benachrichtigen, wann ruhig bleiben, wie oft maximal — plus letzte Aktivität.
-                  </span>
-                </div>
-                <Glyph name="ChevronRight" className="text-muted shrink-0" />
-              </CardBody>
-            </Card>
-          </Link>
-        </div>
-      </Section>
+    <div className="flex flex-col gap-6">
+      <PageHeader eyebrow="Einstellungen" title="Einstellungen" />
 
-      <Section eyebrow="Einstellungen" title="KI-Verhalten">
-        <div className="flex flex-col gap-3">
-          <SettingsToggle
-            label="Auto-Verarbeitung (global)"
-            description="Neue Versionen automatisch berechnen wenn sich Daten ändern."
-            checked={autoProcess}
-            onAction={setAutoProcessGlobal}
-          />
-
-          <Link href="/settings/clusters" className="block">
-            <Card hoverable>
-              <CardBody className="p-4 flex items-start justify-between gap-3">
-                <div className="flex flex-col gap-2 min-w-0">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[0.9375rem] font-medium">
-                      Pro Cluster anpassen
+      <FadeRise>
+        <Section eyebrow="Einstellungen" title="Benachrichtigungen">
+          <div className="flex flex-col gap-3">
+            <PushSubscribe />
+            <Link href="/settings/notifications" className="block">
+              <Card hoverable>
+                <CardBody className="p-4 flex items-start gap-3">
+                  <IconBadge icon="Bell" tone="neutral" size="md" />
+                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <span className="text-body font-medium">
+                      Topics, Ruhezeiten, Tageslimit
                     </span>
                     <span className="text-caption text-muted">
-                      Auto-Verarbeitung pro Domäne überschreiben.
+                      Welche Ereignisse benachrichtigen, wann ruhig bleiben, wie oft maximal — plus letzte Aktivität.
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-subtle">
-                    <span
-                      aria-hidden
-                      className="inline-block size-1.5 rounded-full bg-[var(--color-band-up)]"
-                    />
-                    <span className="num-mono">
-                      {clusters.length}
-                    </span>
-                    <span>
-                      Cluster registriert
-                    </span>
-                    {overrideCount > 0 && (
-                      <>
-                        <span aria-hidden className="opacity-60">·</span>
-                        <span className="num-mono">{overrideCount}</span>
-                        <span>konfiguriert</span>
-                      </>
+                  <Glyph name="ChevronRight" className="text-muted shrink-0 mt-1" />
+                </CardBody>
+              </Card>
+            </Link>
+          </div>
+        </Section>
+      </FadeRise>
+
+      <FadeRise delay={0.05}>
+        <Section eyebrow="Einstellungen" title="KI-Verhalten">
+          <div className="flex flex-col gap-3">
+            <SettingsToggle
+              label="Auto-Verarbeitung (global)"
+              description="Neue Versionen automatisch berechnen wenn sich Daten ändern."
+              checked={autoProcess}
+              onAction={setAutoProcessGlobal}
+            />
+
+            <Link href="/settings/clusters" className="block">
+              <Card hoverable>
+                <CardBody className="p-4 flex items-start gap-3">
+                  <IconBadge icon="GitMerge" tone="neutral" size="md" />
+                  <div className="flex flex-col gap-2 min-w-0 flex-1">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-body font-medium">
+                        Pro Cluster anpassen
+                      </span>
+                      <span className="text-caption text-muted">
+                        Auto-Verarbeitung pro Domäne überschreiben.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-subtle">
+                      <span
+                        aria-hidden
+                        className="inline-block size-1.5 rounded-full bg-[var(--color-band-up)]"
+                      />
+                      <NumberTicker value={clusters.length} className="num-mono" />
+                      <span>
+                        Cluster registriert
+                      </span>
+                      {overrideCount > 0 && (
+                        <>
+                          <span aria-hidden className="opacity-60">·</span>
+                          <span className="num-mono">{overrideCount}</span>
+                          <span>konfiguriert</span>
+                        </>
+                      )}
+                    </div>
+                    {previewLabels.length > 0 && (
+                      <p className="text-caption text-muted leading-relaxed truncate">
+                        {previewLabels.join(" · ")}
+                        {remaining > 0 && (
+                          <span className="text-subtle"> · +{remaining}</span>
+                        )}
+                      </p>
                     )}
                   </div>
-                  {previewLabels.length > 0 && (
-                    <p className="text-caption text-muted leading-relaxed truncate">
-                      {previewLabels.join(" · ")}
-                      {remaining > 0 && (
-                        <span className="text-subtle"> · +{remaining}</span>
-                      )}
-                    </p>
-                  )}
-                </div>
-                <Glyph
-                  name="ChevronRight"
-                  size={16}
-                  className="text-subtle shrink-0 mt-1"
-                />
-              </CardBody>
-            </Card>
-          </Link>
+                  <Glyph
+                    name="ChevronRight"
+                    size={16}
+                    className="text-subtle shrink-0 mt-1"
+                  />
+                </CardBody>
+              </Card>
+            </Link>
 
-          <SettingsToggle
-            label="Kritik-Modell (Experte)"
-            description="Zweiter LLM-Lauf nach jeder Prosa-Generierung für Qualitätsprüfung."
-            checked={critic}
-            onAction={setCriticEnabled}
-          />
-        </div>
-      </Section>
+            <SettingsToggle
+              label="Kritik-Modell (Experte)"
+              description="Zweiter LLM-Lauf nach jeder Prosa-Generierung für Qualitätsprüfung."
+              checked={critic}
+              onAction={setCriticEnabled}
+            />
+          </div>
+        </Section>
+      </FadeRise>
     </div>
   );
 }

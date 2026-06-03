@@ -1,11 +1,12 @@
 import "server-only";
-import Link from "next/link";
 
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph } from "@/components/ui/glyph";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Section } from "@/components/ui/section";
+import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import {
   listRegisteredClustersWithCopy,
   readClusterMeta,
@@ -27,56 +28,55 @@ export default function ClustersSettingsPage() {
   const clusters = listRegisteredClustersWithCopy();
 
   return (
-    <div className="flex flex-col gap-5 md:gap-6">
-      <div className="flex flex-col gap-2">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-caption text-muted hover:text-[var(--color-text)] w-max"
-        >
-          <Glyph name="ChevronLeft" size={14} />
-          Einstellungen
-        </Link>
-        <Eyebrow>Einstellungen</Eyebrow>
-        <h1 className="text-hero">Auto-Verarbeitung pro Cluster</h1>
-        <p className="text-body-sm text-muted max-w-[64ch]">
-          Globale Vorgabe:{" "}
-          <Pill tone={global ? "up" : "low"} size="sm">
-            {global ? "An" : "Aus"}
-          </Pill>
-          . Jeder Cluster kann individuell überschrieben werden. Stellung
-          {" "}<span className="font-medium">Global</span> folgt der je-Cluster
-          Vorgabe (siehe Tooltip am Schalter).
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Einstellungen"
+        title="Auto-Verarbeitung pro Cluster"
+        back={{ href: "/settings", label: "Einstellungen" }}
+        sub={
+          <>
+            Globale Vorgabe:{" "}
+            <Pill tone={global ? "up" : "low"} size="sm">
+              {global ? "An" : "Aus"}
+            </Pill>
+            . Jeder Cluster kann individuell überschrieben werden. Stellung
+            {" "}<span className="font-medium text-[var(--color-text)]">Global</span>{" "}
+            folgt der je-Cluster Vorgabe (siehe Tooltip am Schalter).
+          </>
+        }
+      />
 
-      <Section eyebrow="Cluster">
-        {clusters.length === 0 ? (
-          <Card variant="soft">
-            <CardBody className="p-5 flex flex-col items-center gap-3 text-center">
-              <Glyph
-                name="FlaskConical"
-                size={20}
-                className="text-subtle"
-              />
-              <p className="text-body-sm text-muted max-w-[40ch]">
-                Keine Cluster registriert. Migrationen folgen automatisch
-                beim nächsten Runner-Start.
-              </p>
-            </CardBody>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {clusters.map(({ name, copy }) => (
-              <ClusterRow
-                key={name}
-                name={name}
-                copy={copy}
-                value={readAutoProcessForCluster(name)}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
+      <FadeRise>
+        <Section eyebrow="Cluster">
+          {clusters.length === 0 ? (
+            <Card variant="soft">
+              <CardBody className="p-5 flex flex-col items-center gap-3 text-center">
+                <Glyph
+                  name="FlaskConical"
+                  size={20}
+                  className="text-subtle"
+                />
+                <p className="text-body-sm text-muted max-w-[40ch]">
+                  Keine Cluster registriert. Migrationen folgen automatisch
+                  beim nächsten Runner-Start.
+                </p>
+              </CardBody>
+            </Card>
+          ) : (
+            <Stagger className="flex flex-col gap-2">
+              {clusters.map(({ name, copy }) => (
+                <StaggerItem key={name}>
+                  <ClusterRow
+                    name={name}
+                    copy={copy}
+                    value={readAutoProcessForCluster(name)}
+                  />
+                </StaggerItem>
+              ))}
+            </Stagger>
+          )}
+        </Section>
+      </FadeRise>
     </div>
   );
 }
