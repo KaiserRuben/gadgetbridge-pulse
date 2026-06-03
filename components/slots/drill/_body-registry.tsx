@@ -8,9 +8,11 @@ import { MorningBriefingDrillBody } from "./MorningBriefingDrillBody";
 import { MiddayCheckDrillBody } from "./MiddayCheckDrillBody";
 import { EveningReviewDrillBody } from "./EveningReviewDrillBody";
 import { DaySynthesisDrillBody } from "./DaySynthesisDrillBody";
+import { WeekSynthesisDrillBody } from "./WeekSynthesisDrillBody";
 import { PostWorkoutDrillBody } from "./PostWorkoutDrillBody";
 import { AnomalyExplainDrillBody } from "./AnomalyExplainDrillBody";
 import type { NightReviewPayload } from "@/runner/v4/slots/night-review/types.ts";
+import type { WeekSynthesisPayload } from "@/runner/v4/slots/week-synthesis/types.ts";
 import type { MorningBriefingPayload } from "@/runner/v4/slots/morning-briefing/types.ts";
 import type { MiddayCheckPayload } from "@/runner/v4/slots/midday-check/types.ts";
 import type { EveningReviewPayload } from "@/runner/v4/slots/evening-review/types.ts";
@@ -38,6 +40,9 @@ const REGISTRY: Partial<Record<SlotId, BodyComponent>> = {
   ),
   day_synthesis: ({ payload }) => (
     <DaySynthesisDrillBody payload={payload as DaySynthesisPayload} />
+  ),
+  week_synthesis: ({ payload }) => (
+    <WeekSynthesisDrillBody payload={payload as WeekSynthesisPayload} />
   ),
   post_workout: ({ payload }) => (
     <PostWorkoutDrillBody payload={payload as PostWorkoutPayload} />

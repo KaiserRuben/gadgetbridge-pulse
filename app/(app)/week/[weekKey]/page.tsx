@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { readViewState, detectScope } from "@/lib/view-state/fetcher";
 import { ViewStateProvider } from "@/lib/view-state/context";
-import { SlotCell } from "@/components/view/SlotCell";
+import { SlotDrillSection } from "@/components/slots/drill/SlotDrillSection";
 import { WeekDayStrip } from "@/components/view/WeekDayStrip";
 import { PageHeader } from "@/components/ui/page-header";
 import { fmtWeekRange, shiftWeek, weekDayDate } from "@/lib/week";
@@ -74,10 +74,12 @@ export default async function WeekPage({
             nochmal vorbei.
           </p>
         ) : (
-          <SlotCell
+          <SlotDrillSection
             slot_id="week_synthesis"
             entry={view.slots.week_synthesis}
             title="Wochen-Synthese"
+            eyebrow="Wochenrückblick"
+            glow="activity"
           />
         )}
 

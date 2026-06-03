@@ -18,6 +18,7 @@ import type {
   SlotStatus,
   ViewStateDaily,
   ViewStateDailySlots,
+  ViewStateWeekly,
 } from "@/runner/v4/types.ts";
 
 const PAYLOAD_STATUSES = new Set<SlotStatus>([
@@ -35,7 +36,7 @@ function fmtTime(iso: string | null | undefined): string {
 }
 
 export interface SlotDrillSectionProps {
-  slot_id: DailySlotId;
+  slot_id: DailySlotId | "week_synthesis";
   entry: SlotEntry<unknown> | null | undefined;
   title: string;
   eyebrow?: string;
@@ -50,10 +51,20 @@ export function SlotDrillSection({
   glow,
 }: SlotDrillSectionProps) {
   const { view } = useViewState();
-  const liveEntry =
-    view && view.scope === "daily"
-      ? ((view as ViewStateDaily).slots as ViewStateDailySlots)[slot_id]
-      : undefined;
+  // Resolve the live entry per scope so this section serves both the daily
+  // drill (/day) and the weekly page (/week).
+  const liveEntry: SlotEntry<unknown> | null | undefined = (() => {
+    if (!view) return undefined;
+    if (view.scope === "weekly") {
+      return slot_id === "week_synthesis"
+        ? (view as ViewStateWeekly).slots.week_synthesis
+        : undefined;
+    }
+    if (view.scope === "daily" && slot_id !== "week_synthesis") {
+      return ((view as ViewStateDaily).slots as ViewStateDailySlots)[slot_id];
+    }
+    return undefined;
+  })();
   const entry: SlotEntry<unknown> | null | undefined = liveEntry ?? ssrEntry;
   const status: SlotStatus = entry?.status ?? "scheduled";
   const ref = useRef<HTMLElement | null>(null);

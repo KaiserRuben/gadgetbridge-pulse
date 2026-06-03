@@ -17,6 +17,8 @@ export function WeekSynthesisBody({ payload }: { payload: WeekSynthesisPayload }
         { label: "Nächste Woche", text: payload.next_week_focus },
       ]}
       kpis={payload.kpis}
+      confidence={payload.confidence?.value}
+      domain="activity"
       extras={<TopAnchorsList anchors={payload.top_anchors} />}
     />
   );
