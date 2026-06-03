@@ -8,6 +8,7 @@ import { findExploreMetric, isExploreMetricId } from "@/lib/explore-metrics-defs
 import { getLatestDailyDate } from "@/lib/insights";
 import { todayKey, addDays } from "@/lib/time";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -15,6 +16,7 @@ import { Glyph } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
 import { Stat } from "@/components/ui/stat";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import {
   MetricTimelinePanel,
   MetricHistogramPanel,
@@ -69,47 +71,51 @@ export default async function ExploreMetricPage({
   const nextDate = addDays(date, 1);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/explore"
-            className="grid place-items-center size-9 rounded-[var(--radius-chip)] text-muted hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]/70"
-            aria-label="Zurück zu Explore"
-          >
-            <Glyph name="ChevronRight" size={16} className="rotate-180" />
-          </Link>
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <Eyebrow>{domainLabel(def.domain)} · {date}</Eyebrow>
-            <h1 className="text-hero truncate">{def.label}</h1>
-          </div>
-        </div>
-        <nav className="flex items-center gap-1">
-          <Link
-            href={`/explore/${rawMetric}?date=${prevDate}`}
-            className="grid place-items-center size-9 rounded-[var(--radius-chip)] text-muted hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]/70"
-            aria-label="Vorheriger Tag"
-          >
-            <Glyph name="ChevronRight" size={16} className="rotate-180" />
-          </Link>
-          <Link
-            href={`/explore/${rawMetric}?date=${nextDate}`}
-            className="grid place-items-center size-9 rounded-[var(--radius-chip)] text-muted hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]/70"
-            aria-label="Nächster Tag"
-          >
-            <Glyph name="ChevronRight" size={16} />
-          </Link>
-        </nav>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        back={{ href: "/explore", label: "Erkunden" }}
+        eyebrow={`${domainLabel(def.domain)} · ${date}`}
+        title={<span className="truncate">{def.label}</span>}
+        trailing={
+          <nav className="flex items-center gap-1">
+            <Link
+              href={`/explore/${rawMetric}?date=${prevDate}`}
+              className="grid size-9 place-items-center rounded-[var(--radius-chip)] text-muted transition-colors hover:bg-[var(--color-surface)]/70 hover:text-[var(--color-text)]"
+              aria-label="Vorheriger Tag"
+            >
+              <Glyph name="ChevronRight" size={16} className="rotate-180" />
+            </Link>
+            <Link
+              href={`/explore/${rawMetric}?date=${nextDate}`}
+              className="grid size-9 place-items-center rounded-[var(--radius-chip)] text-muted transition-colors hover:bg-[var(--color-surface)]/70 hover:text-[var(--color-text)]"
+              aria-label="Nächster Tag"
+            >
+              <Glyph name="ChevronRight" size={16} />
+            </Link>
+          </nav>
+        }
+      />
 
       <FadeRise>
         <Card glow={tone === "body" ? "body" : tone}>
-          <CardBody className="p-5 lg:p-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat
-              label="Heute"
-              value={todayValue != null ? todayValue.toFixed(def.decimals) : "—"}
-              unit={def.unit}
-            />
+          <CardBody className="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4 lg:p-6">
+            <div className="flex flex-col gap-1">
+              <Eyebrow>Heute</Eyebrow>
+              <div className="flex items-baseline gap-1.5">
+                {todayValue != null ? (
+                  <NumberTicker
+                    value={todayValue}
+                    decimals={def.decimals}
+                    className="num text-[1.75rem] font-semibold leading-none tracking-[-0.02em]"
+                  />
+                ) : (
+                  <span className="num text-[1.75rem] font-semibold leading-none tracking-[-0.02em]">—</span>
+                )}
+                {def.unit && todayValue != null && (
+                  <span className="num-mono text-subtle text-[0.75rem]">{def.unit}</span>
+                )}
+              </div>
+            </div>
             <Stat
               label="14d-Mittel"
               value={detail.timeline_baseline.mean != null ? detail.timeline_baseline.mean.toFixed(def.decimals) : "—"}
@@ -123,7 +129,7 @@ export default async function ExploreMetricPage({
             <div className="flex flex-col gap-1">
               <span className="eyebrow">z-Score</span>
               <div className="flex items-baseline gap-1.5">
-                <span className="num text-[1.5rem] font-semibold">
+                <span className="num text-num-lg font-semibold">
                   {z != null ? z.toFixed(2) : "—"}
                 </span>
                 {z != null && (
@@ -150,7 +156,7 @@ export default async function ExploreMetricPage({
         </Card>
       </Section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Section eyebrow="Verteilung" title="30-Tage-Histogramm">
           <Card>
             <CardBody className="p-5">
