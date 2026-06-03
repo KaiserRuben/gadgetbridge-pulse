@@ -10,14 +10,14 @@ import { readViewState } from "@/lib/view-state/fetcher";
 import { detailToday, detailSeries, detailDates } from "@/lib/view-state/detail";
 import type { ViewStateDaily } from "@/runner/v4/types.ts";
 
-import { DomainChrome } from "@/components/domain/domain-chrome";
+import { DomainDetailHeader } from "@/components/view/DomainDetailHeader";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Timeline, type TimelinePoint } from "@/components/charts/timeline";
 import { Sparkline } from "@/components/charts/sparkline";
 import { BandStrip } from "@/components/charts/band-strip";
-import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 export default async function HeartDetail({
   params,
@@ -62,9 +62,21 @@ export default async function HeartDetail({
     score: rhrSeries[i],
   }));
 
+  const support = summary.hrAvg
+    ? `Mittel ${Math.round(summary.hrAvg)} · Max ${Math.round(summary.hrMax)} bpm`
+    : null;
+
   return (
     <div className="flex flex-col gap-6">
-      <DomainChrome domainLabel="Herz" date={date} hrefBase="/heart" icon="HeartPulse" />
+      <DomainDetailHeader
+        domainLabel="Herz"
+        date={date}
+        hrefBase="/heart"
+        tone="heart"
+        hero={{ value: detailToday(view, "cardio.rhr_day_bpm"), fmt: "int", unit: "bpm", label: "Ruhepuls" }}
+        support={support}
+        trend={{ series: rhrSeries, label: "Ruhepuls" }}
+      />
 
       <div className="hidden items-center justify-between gap-3 md:flex">
         <div className="flex min-w-0 items-center gap-3">
@@ -74,77 +86,85 @@ export default async function HeartDetail({
         <span className="text-caption text-muted shrink-0">Ruhepuls</span>
       </div>
 
-      <FadeRise>
-        <Card glow="heart">
-          <CardBody className="flex flex-col gap-5 p-5 lg:p-6">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Ruhepuls" value={fmtNum(detailToday(view, "cardio.rhr_day_bpm"), Math.round)} unit="bpm" />
-              <Stat label="Mittel" value={fmtInt(summary.hrAvg || 0)} unit="bpm" />
-              <Stat label="Maximum" value={fmtInt(summary.hrMax || 0)} unit="bpm" />
-              <Stat label="Minimum" value={fmtInt(summary.hrMin || 0)} unit="bpm" />
-            </div>
-            <div className="grid grid-cols-2 gap-4 border-t border-[var(--color-border)] pt-4 lg:grid-cols-4">
-              <Stat label="SpO₂ ⌀" value={fmtNum(detailToday(view, "cardio.spo2_mean_pct"), (v) => v.toFixed(1))} unit="%" />
-              <Stat label="HRV" value={fmtNum(detailToday(view, "sleep.rmssd_ms"), Math.round)} unit="ms" />
-              <Stat label="RHR Schlaf" value={fmtNum(detailToday(view, "sleep.rhr_sleep_bpm"), Math.round)} unit="bpm" />
-              <Stat label="Atem" value={fmtNum(detailToday(view, "sleep.breath_rate_mean"), (v) => v.toFixed(1))} unit="/min" />
-            </div>
-          </CardBody>
-        </Card>
-      </FadeRise>
-
-      <Section eyebrow="24 h" title="Verlauf">
-        <Card>
-          <CardBody className="flex flex-col gap-3 p-5">
-            {highlightTs != null && (
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--color-heart)]/30 bg-[var(--color-heart)]/10 px-3 py-2 text-caption">
-                <span className="size-2 rounded-full bg-[var(--color-heart)]" />
-                <span className="text-[var(--color-text)]">
-                  Signal um <span className="num-mono">{fmtHm(highlightTs)}</span> markiert
-                </span>
+      <Stagger className="flex flex-col gap-6">
+        <StaggerItem>
+          <Card glow="heart">
+            <CardBody className="flex flex-col gap-5 p-5 lg:p-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Stat label="Ruhepuls" value={fmtNum(detailToday(view, "cardio.rhr_day_bpm"), Math.round)} unit="bpm" />
+                <Stat label="Mittel" value={fmtInt(summary.hrAvg || 0)} unit="bpm" />
+                <Stat label="Maximum" value={fmtInt(summary.hrMax || 0)} unit="bpm" />
+                <Stat label="Minimum" value={fmtInt(summary.hrMin || 0)} unit="bpm" />
               </div>
-            )}
-            <Timeline
-              data={hr}
-              tone="heart"
-              unit="bpm"
-              height={260}
-              brush
-              bands={HR_ZONES.map((z) => ({ from: z.min, to: z.max, color: z.color }))}
-              highlightTs={highlightTs}
-            />
-          </CardBody>
-        </Card>
-      </Section>
+              <div className="grid grid-cols-2 gap-4 border-t border-[var(--color-border)] pt-4 lg:grid-cols-4">
+                <Stat label="SpO₂ ⌀" value={fmtNum(detailToday(view, "cardio.spo2_mean_pct"), (v) => v.toFixed(1))} unit="%" />
+                <Stat label="HRV" value={fmtNum(detailToday(view, "sleep.rmssd_ms"), Math.round)} unit="ms" />
+                <Stat label="RHR Schlaf" value={fmtNum(detailToday(view, "sleep.rhr_sleep_bpm"), Math.round)} unit="bpm" />
+                <Stat label="Atem" value={fmtNum(detailToday(view, "sleep.breath_rate_mean"), (v) => v.toFixed(1))} unit="/min" />
+              </div>
+            </CardBody>
+          </Card>
+        </StaggerItem>
 
-      <Section eyebrow="Zonen" title="Verteilung">
-        <Card variant="soft">
-          <CardBody className="flex flex-col gap-2 p-5">
-            {HR_ZONES.map((z) => {
-              const total = Object.values(zoneMin).reduce((s, v) => s + v, 0) || 1;
-              const pct = (zoneMin[z.label] / total) * 100;
-              return (
-                <div key={z.label} className="flex items-center gap-2 sm:gap-3">
-                  <span className="w-16 truncate text-[0.75rem] sm:w-[88px] sm:text-[0.875rem]">{z.label}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: z.color }} />
+        <StaggerItem>
+          <Section eyebrow="24 h" title="Verlauf">
+            <Card>
+              <CardBody className="flex flex-col gap-3 p-5">
+                {highlightTs != null && (
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--color-heart)]/30 bg-[var(--color-heart)]/10 px-3 py-2 text-caption">
+                    <span className="size-2 rounded-full bg-[var(--color-heart)]" />
+                    <span className="text-[var(--color-text)]">
+                      Signal um <span className="num-mono">{fmtHm(highlightTs)}</span> markiert
+                    </span>
                   </div>
-                  <span className="num-mono text-caption w-12 shrink-0 text-right sm:w-[60px]">{fmtInt(zoneMin[z.label])}m</span>
-                </div>
-              );
-            })}
-          </CardBody>
-        </Card>
-      </Section>
+                )}
+                <Timeline
+                  data={hr}
+                  tone="heart"
+                  unit="bpm"
+                  height={260}
+                  brush
+                  bands={HR_ZONES.map((z) => ({ from: z.min, to: z.max, color: z.color }))}
+                  highlightTs={highlightTs}
+                />
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
 
-      <Section eyebrow="Trend" title="14 Tage">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <TrendTile label="Ruhepuls" series={rhrSeries} unit="bpm" />
-          <TrendTile label="HR max" series={hrMaxSeries} unit="bpm" />
-          <TrendTile label="HRV" series={hrvSeries} unit="ms" />
-          <TrendTile label="SpO₂" series={spoSeries} unit="%" />
-        </div>
-      </Section>
+        <StaggerItem>
+          <Section eyebrow="Zonen" title="Verteilung">
+            <Card variant="soft">
+              <CardBody className="flex flex-col gap-2 p-5">
+                {HR_ZONES.map((z) => {
+                  const total = Object.values(zoneMin).reduce((s, v) => s + v, 0) || 1;
+                  const pct = (zoneMin[z.label] / total) * 100;
+                  return (
+                    <div key={z.label} className="flex items-center gap-2 sm:gap-3">
+                      <span className="w-16 truncate text-[0.75rem] sm:w-[88px] sm:text-[0.875rem]">{z.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: z.color }} />
+                      </div>
+                      <span className="num-mono text-caption w-12 shrink-0 text-right sm:w-[60px]">{fmtInt(zoneMin[z.label])}m</span>
+                    </div>
+                  );
+                })}
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
+
+        <StaggerItem>
+          <Section eyebrow="Trend" title="14 Tage">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <TrendTile label="Ruhepuls" series={rhrSeries} unit="bpm" />
+              <TrendTile label="HR max" series={hrMaxSeries} unit="bpm" />
+              <TrendTile label="HRV" series={hrvSeries} unit="ms" />
+              <TrendTile label="SpO₂" series={spoSeries} unit="%" />
+            </div>
+          </Section>
+        </StaggerItem>
+      </Stagger>
     </div>
   );
 }
@@ -181,7 +201,7 @@ function TrendTile({
           <span className="num text-[1.375rem] font-semibold leading-none">{last != null ? Math.round(last) : "—"}</span>
           {unit && last != null && <span className="text-subtle num-mono text-[0.6875rem]">{unit}</span>}
         </div>
-        <Sparkline values={series.slice(-10)} tone="heart" width={160} height={28} className="mt-auto" />
+        <Sparkline values={series.slice(-10)} tone="heart" width={160} height={28} markers className="mt-auto" />
       </CardBody>
     </Card>
   );

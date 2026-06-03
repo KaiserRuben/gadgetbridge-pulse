@@ -6,14 +6,14 @@ import { readViewState } from "@/lib/view-state/fetcher";
 import { detailToday, detailSeries, detailDates } from "@/lib/view-state/detail";
 import type { ViewStateDaily } from "@/runner/v4/types.ts";
 
-import { DomainChrome } from "@/components/domain/domain-chrome";
+import { DomainDetailHeader } from "@/components/view/DomainDetailHeader";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Sparkline } from "@/components/charts/sparkline";
 import { BandStrip } from "@/components/charts/band-strip";
 import { Glyph } from "@/components/ui/glyph";
-import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 export default async function BodyDetail({ params }: { params: Promise<{ date: string }> }) {
   noStore();
@@ -42,9 +42,29 @@ export default async function BodyDetail({ params }: { params: Promise<{ date: s
     score: weight[i],
   }));
 
+  const bmiVal = m("bmi");
+  const skinTempVal = m("skin_temp_median");
+  const support =
+    [
+      bmiVal != null ? `BMI ${bmiVal.toFixed(1)}` : null,
+      skinTempVal != null ? `Hauttemp ${skinTempVal.toFixed(1)}°C` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
+
+  const bodyFatVal = m("body_fat_pct");
+
   return (
     <div className="flex flex-col gap-6">
-      <DomainChrome domainLabel="Körper" date={date} hrefBase="/body" icon="Thermometer" />
+      <DomainDetailHeader
+        domainLabel="Körper"
+        date={date}
+        hrefBase="/body"
+        tone="body"
+        hero={{ value: m("weight_kg"), fmt: "dec1", unit: "kg", label: "Gewicht" }}
+        support={support}
+        trend={{ series: weight, label: "Gewicht" }}
+      />
 
       <div className="hidden items-center justify-between gap-3 md:flex">
         <div className="flex min-w-0 items-center gap-3">
@@ -54,35 +74,43 @@ export default async function BodyDetail({ params }: { params: Promise<{ date: s
         <span className="text-caption text-muted shrink-0">Gewicht vs 7d-Basis</span>
       </div>
 
-      <FadeRise>
-        <Card glow="body">
-          <CardBody className="flex flex-col gap-4 p-5 lg:p-6">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Gewicht" value={fmtNum(m("weight_kg"), (v) => v.toFixed(1))} unit="kg" />
-              <Stat label="BMI" value={fmtNum(m("bmi"), (v) => v.toFixed(1))} />
-              <Stat label="Körperfett" value={fmtNum(m("body_fat_pct"), (v) => v.toFixed(1))} unit="%" />
-              <Stat label="Hauttemp" value={fmtNum(m("skin_temp_median"), (v) => v.toFixed(1))} unit="°C" />
-            </div>
-            <Link
-              href="/log/weight"
-              className="inline-flex h-9 items-center justify-center gap-2 self-start rounded-[var(--radius-pill)] bg-[var(--color-surface-2)] px-3 text-caption ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:text-[var(--color-text)]"
-            >
-              <Glyph name="PenLine" size={12} />
-              Gewicht eintragen
-            </Link>
-          </CardBody>
-        </Card>
-      </FadeRise>
+      <Stagger className="flex flex-col gap-6">
+        <StaggerItem>
+          <Card glow="body">
+            <CardBody className="flex flex-col gap-4 p-5 lg:p-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Stat label="Gewicht" value={fmtNum(m("weight_kg"), (v) => v.toFixed(1))} unit="kg" />
+                <Stat label="BMI" value={fmtNum(bmiVal, (v) => v.toFixed(1))} />
+                <Stat
+                  label="Körperfett"
+                  value={fmtNum(bodyFatVal, (v) => v.toFixed(1))}
+                  {...(bodyFatVal != null ? { unit: "%" } : {})}
+                />
+                <Stat label="Hauttemp" value={fmtNum(skinTempVal, (v) => v.toFixed(1))} unit="°C" />
+              </div>
+              <Link
+                href="/log/weight"
+                className="inline-flex h-9 items-center justify-center gap-2 self-start rounded-[var(--radius-pill)] bg-[var(--color-surface-2)] px-3 text-caption ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:text-[var(--color-text)]"
+              >
+                <Glyph name="PenLine" size={12} />
+                Gewicht eintragen
+              </Link>
+            </CardBody>
+          </Card>
+        </StaggerItem>
 
-      <Section eyebrow="Trend" title="14 Tage">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <TrendCard label="Gewicht" unit="kg" series={weight} decimals={1} />
-          <TrendCard label="Körperfett" unit="%" series={bodyFat} decimals={1} />
-          <TrendCard label="BMI" unit="" series={bmi} decimals={1} />
-          <TrendCard label="Hauttemp" unit="°C" series={skinTemp} decimals={1} />
-          <TrendCard label="Hauttemp Δ" unit="°C" series={skinDelta} decimals={2} signed />
-        </div>
-      </Section>
+        <StaggerItem>
+          <Section eyebrow="Trend" title="14 Tage">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <TrendCard label="Gewicht" unit="kg" series={weight} decimals={1} />
+              <TrendCard label="Körperfett" unit="%" series={bodyFat} decimals={1} />
+              <TrendCard label="BMI" unit="" series={bmi} decimals={1} />
+              <TrendCard label="Hauttemp" unit="°C" series={skinTemp} decimals={1} />
+              <TrendCard label="Hauttemp Δ" unit="°C" series={skinDelta} decimals={2} signed />
+            </div>
+          </Section>
+        </StaggerItem>
+      </Stagger>
     </div>
   );
 }
@@ -106,7 +134,7 @@ function TrendCard({
       <Card variant="soft">
         <CardBody className="flex flex-col gap-2 p-5">
           <span className="eyebrow">{label}</span>
-          <span className="text-caption">Keine Daten</span>
+          <span className="text-caption text-subtle">Noch keine Messung</span>
         </CardBody>
       </Card>
     );
@@ -135,7 +163,7 @@ function TrendCard({
           </span>
           {unit && <span className="text-subtle num-mono text-[0.875rem]">{unit}</span>}
         </div>
-        <Sparkline values={series} tone="body" width={520} height={48} className="w-full" />
+        <Sparkline values={series} tone="body" width={520} height={48} markers className="w-full" />
       </CardBody>
     </Card>
   );

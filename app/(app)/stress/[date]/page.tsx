@@ -8,14 +8,14 @@ import { readViewState } from "@/lib/view-state/fetcher";
 import { detailToday, detailSeries, detailDates } from "@/lib/view-state/detail";
 import type { ViewStateDaily } from "@/runner/v4/types.ts";
 
-import { DomainChrome } from "@/components/domain/domain-chrome";
+import { DomainDetailHeader } from "@/components/view/DomainDetailHeader";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Sparkline } from "@/components/charts/sparkline";
 import { BandStrip } from "@/components/charts/band-strip";
 import { StressHourly } from "@/components/charts/stress-hourly";
-import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 export default async function StressDetail({ params }: { params: Promise<{ date: string }> }) {
   noStore();
@@ -66,9 +66,24 @@ export default async function StressDetail({ params }: { params: Promise<{ date:
     score: meanSeries[i],
   }));
 
+  const support = [
+    max != null ? `Max ${Math.round(max)}` : null,
+    highMin != null ? `Hochstress ${Math.round(highMin)} min` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="flex flex-col gap-6">
-      <DomainChrome domainLabel="Stress" date={date} hrefBase="/stress" icon="Waves" />
+      <DomainDetailHeader
+        domainLabel="Stress"
+        date={date}
+        hrefBase="/stress"
+        tone="stress"
+        hero={{ value: mean, fmt: "int", label: "Stress ⌀" }}
+        support={support || null}
+        trend={{ series: meanSeries, label: "Stress ⌀" }}
+      />
 
       <div className="hidden items-center justify-between gap-3 md:flex">
         <div className="flex min-w-0 items-center gap-3">
@@ -78,66 +93,74 @@ export default async function StressDetail({ params }: { params: Promise<{ date:
         <span className="text-caption text-muted shrink-0">Mittel</span>
       </div>
 
-      <FadeRise>
-        <Card glow="stress">
-          <CardBody className="grid grid-cols-3 gap-4 p-5 lg:p-6">
-            <Stat label="Mittel" value={fmtNum(mean, (v) => v.toFixed(0))} />
-            <Stat label="Maximum" value={fmtNum(max, (v) => v.toFixed(0))} />
-            <Stat label="Hochstress" value={fmtNum(highMin, (v) => v.toFixed(0))} unit="min" />
-          </CardBody>
-        </Card>
-      </FadeRise>
-
-      {mean == null && samples.length === 0 && (
-        <FadeRise>
-          <Card variant="soft">
-            <CardBody className="grid place-items-center gap-2 p-6 text-center text-caption">
-              Keine Stress-Daten für diesen Tag. Trend-Sparklines unten greifen auf die letzten 14 Tage zu.
+      <Stagger className="flex flex-col gap-6">
+        <StaggerItem>
+          <Card glow="stress">
+            <CardBody className="grid grid-cols-3 gap-4 p-5 lg:p-6">
+              <Stat label="Mittel" value={fmtNum(mean, (v) => v.toFixed(0))} />
+              <Stat label="Maximum" value={fmtNum(max, (v) => v.toFixed(0))} />
+              <Stat label="Hochstress" value={fmtNum(highMin, (v) => v.toFixed(0))} unit="min" />
             </CardBody>
           </Card>
-        </FadeRise>
-      )}
+        </StaggerItem>
 
-      {samples.length === 0 ? null : (
-        <Section eyebrow="Tagesprofil" title="Stress je Stunde">
-          <Card variant="soft">
-            <CardBody className="p-5">
-              <StressHourly values={hourly} height={96} />
-            </CardBody>
-          </Card>
-        </Section>
-      )}
+        {mean == null && samples.length === 0 && (
+          <StaggerItem>
+            <Card variant="soft">
+              <CardBody className="grid place-items-center gap-2 p-6 text-center text-caption">
+                Keine Stress-Daten für diesen Tag. Trend-Sparklines unten greifen auf die letzten 14 Tage zu.
+              </CardBody>
+            </Card>
+          </StaggerItem>
+        )}
 
-      {totalMin > 0 && (
-        <Section eyebrow="Zonen" title={`${totalMin} min mit Stress-Messung`}>
-          <Card variant="soft">
-            <CardBody className="flex flex-col gap-2 p-5">
-              {STRESS_BUCKETS.map((b) => {
-                const min = zoneMin[b.label];
-                const pct = (min / totalMin) * 100;
-                return (
-                  <div key={b.label} className="flex items-center gap-3">
-                    <span className="w-[88px] text-[0.875rem]">{labelDe(b.label)}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: b.color }} />
-                    </div>
-                    <span className="num-mono text-caption w-[60px] text-right">{min}m</span>
-                    <span className="num-mono text-caption text-subtle w-[42px] text-right">{pct.toFixed(0)}%</span>
-                  </div>
-                );
-              })}
-            </CardBody>
-          </Card>
-        </Section>
-      )}
+        {samples.length === 0 ? null : (
+          <StaggerItem>
+            <Section eyebrow="Tagesprofil" title="Stress je Stunde">
+              <Card variant="soft">
+                <CardBody className="p-5">
+                  <StressHourly values={hourly} height={96} />
+                </CardBody>
+              </Card>
+            </Section>
+          </StaggerItem>
+        )}
 
-      <Section eyebrow="Trend" title="14 Tage">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <TrendCard label="Mittel" series={meanSeries} />
-          <TrendCard label="Maximum" series={maxSeries} />
-          <TrendCard label="Hochstress min" series={highMinSeries} />
-        </div>
-      </Section>
+        {totalMin > 0 && (
+          <StaggerItem>
+            <Section eyebrow="Zonen" title={`${totalMin} min mit Stress-Messung`}>
+              <Card variant="soft">
+                <CardBody className="flex flex-col gap-2 p-5">
+                  {STRESS_BUCKETS.map((b) => {
+                    const min = zoneMin[b.label];
+                    const pct = (min / totalMin) * 100;
+                    return (
+                      <div key={b.label} className="flex items-center gap-3">
+                        <span className="w-[88px] text-[0.875rem]">{labelDe(b.label)}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: b.color }} />
+                        </div>
+                        <span className="num-mono text-caption w-[60px] text-right">{min}m</span>
+                        <span className="num-mono text-caption text-subtle w-[42px] text-right">{pct.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </CardBody>
+              </Card>
+            </Section>
+          </StaggerItem>
+        )}
+
+        <StaggerItem>
+          <Section eyebrow="Trend" title="14 Tage">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <TrendCard label="Mittel" series={meanSeries} />
+              <TrendCard label="Maximum" series={maxSeries} />
+              <TrendCard label="Hochstress min" series={highMinSeries} />
+            </div>
+          </Section>
+        </StaggerItem>
+      </Stagger>
     </div>
   );
 }
@@ -147,7 +170,7 @@ function TrendCard({ label, series }: { label: string; series: Array<number | nu
     <Card>
       <CardBody className="flex flex-col gap-2 p-5">
         <span className="eyebrow">{label}</span>
-        <Sparkline values={series} tone="stress" width={420} height={56} className="w-full" />
+        <Sparkline values={series} tone="stress" width={420} height={56} markers className="w-full" />
       </CardBody>
     </Card>
   );

@@ -19,7 +19,7 @@ import { detailToday, detailSeries, detailDates } from "@/lib/view-state/detail"
 import type { ViewStateDaily } from "@/runner/v4/types.ts";
 import { fmtInt } from "@/lib/format";
 
-import { DomainChrome } from "@/components/domain/domain-chrome";
+import { DomainDetailHeader } from "@/components/view/DomainDetailHeader";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -34,7 +34,7 @@ import {
   type StepsBar,
   type AcwrPoint,
 } from "@/components/charts/activity-charts";
-import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import Link from "next/link";
 
 /** Default daily-step target when the user hasn't configured one. */
@@ -81,6 +81,7 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
   const dataDays = stepsBars.filter((b) => b.steps != null).length;
 
   const acwrPoints = mergeAcwrSeries(acuteSeries, chronicSeries);
+  const hasLoad = acwrPoints.some((p) => p.acute != null || p.chronic != null);
 
   const distribution = workoutDistribution(workouts30d);
   const totalWorkouts30d = distribution.reduce((s, r) => s + r.count, 0);
@@ -109,9 +110,29 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
       : `/workouts/${latestSession.primaryId}`
     : null;
 
+  const distM = detailToday(view, "activity.distance_m");
+  const activeMin = detailToday(view, "activity.active_minutes");
+  const support =
+    [
+      distM != null
+        ? `${(distM / 1000).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`
+        : null,
+      activeMin != null ? `${Math.round(activeMin)} min aktiv` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
+
   return (
     <div className="flex flex-col gap-6">
-      <DomainChrome domainLabel="Bewegung" date={date} hrefBase="/activity" icon="Footprints" />
+      <DomainDetailHeader
+        domainLabel="Bewegung"
+        date={date}
+        hrefBase="/activity"
+        tone="activity"
+        hero={{ value: detailToday(view, "activity.steps"), fmt: "int", label: "Schritte" }}
+        support={support}
+        trend={{ series: stepsSeries, label: "Schritte" }}
+      />
 
       <div className="hidden items-center justify-between gap-3 md:flex">
         <div className="flex min-w-0 items-center gap-3">
@@ -121,189 +142,213 @@ export default async function ActivityDetail({ params }: { params: Promise<{ dat
         <span className="text-caption text-muted shrink-0">Schritte vs Ziel</span>
       </div>
 
-      <FadeRise>
-        <Card glow="activity">
-          <CardBody className="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4 lg:p-6">
-            <Stat label="Schritte" value={fmtInt(summary.totalSteps)} />
-            <Stat label="Distanz" value={(summary.totalDistanceM / 1000).toFixed(2)} unit="km" />
-            {summary.totalCalories > 0 ? (
-              <Stat label="Aktiv-Energie" value={fmtInt(summary.totalCalories)} unit="kcal" />
-            ) : (
-              <Stat label="Aktiv-Energie" value="—" />
-            )}
-            <Stat label="Aktiv" value={fmtNum(detailToday(view, "activity.active_minutes"), Math.round)} unit="min" />
-          </CardBody>
-        </Card>
-      </FadeRise>
+      <Stagger className="flex flex-col gap-6">
+        <StaggerItem>
+          <Card glow="activity">
+            <CardBody className="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4 lg:p-6">
+              <Stat label="Schritte" value={fmtInt(detailToday(view, "activity.steps") ?? summary.totalSteps)} />
+              <Stat label="Distanz" value={(summary.totalDistanceM / 1000).toFixed(2)} unit="km" />
+              {summary.totalCalories > 0 ? (
+                <Stat label="Aktiv-Energie" value={fmtInt(summary.totalCalories)} unit="kcal" />
+              ) : (
+                <Stat label="Aktiv-Energie" value="—" />
+              )}
+              <Stat label="Aktiv" value={fmtNum(detailToday(view, "activity.active_minutes"), Math.round)} unit="min" />
+            </CardBody>
+          </Card>
+        </StaggerItem>
 
-      {latestSession && sessionHref && (
-        <Section eyebrow="Heute" title="Letzte Session">
-          <Link href={sessionHref}>
-            <Card hoverable glow="activity">
-              <CardBody className="flex items-start gap-4 p-5">
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-[var(--color-activity)]/40 bg-gradient-to-br from-[var(--color-activity)]/25 to-[var(--color-activity-2)]/15 text-[var(--color-activity)]">
-                  <Glyph name={latestSession.typeIcon as GlyphName} size={20} />
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-[1.0625rem] font-medium">{latestSession.typeLabel}</span>
-                    <span className="num-mono text-caption">{fmtClock(latestSession.startTs)}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-caption">
-                    <span className="num-mono">{fmtDur(latestSession.durationSec)}</span>
-                    <span className="text-faint">·</span>
-                    <span className="num-mono">{(latestSession.distanceM / 1000).toFixed(2)} km</span>
-                    <span className="text-faint">·</span>
-                    <span className="num-mono">{fmtInt(latestSession.calories)} kcal</span>
-                    {latestSession.hrMax != null && (
-                      <>
+        {latestSession && sessionHref && (
+          <StaggerItem>
+            <Section eyebrow="Heute" title="Letzte Session">
+              <Link href={sessionHref}>
+                <Card hoverable glow="activity">
+                  <CardBody className="flex items-start gap-4 p-5">
+                    <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-[var(--color-activity)]/40 bg-gradient-to-br from-[var(--color-activity)]/25 to-[var(--color-activity-2)]/15 text-[var(--color-activity)]">
+                      <Glyph name={latestSession.typeIcon as GlyphName} size={20} />
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-[1.0625rem] font-medium">{latestSession.typeLabel}</span>
+                        <span className="num-mono text-caption">{fmtClock(latestSession.startTs)}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-caption">
+                        <span className="num-mono">{fmtDur(latestSession.durationSec)}</span>
                         <span className="text-faint">·</span>
-                        <span className="num-mono">↑{latestSession.hrMax} bpm</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {latestSession.isStitched && (
-                      <Pill tone="activity" size="sm">
-                        <Glyph name="GitMerge" size={10} className="mr-1" />
-                        {latestSession.members.length} Segmente
-                      </Pill>
-                    )}
-                    {latestSession.workoutLoadSum != null && latestSession.workoutLoadSum > 0 && (
-                      <Pill tone="neutral" size="sm" className="num-mono">
-                        Last {latestSession.workoutLoadSum}
-                      </Pill>
-                    )}
-                  </div>
-                </div>
-                <Glyph name="ChevronRight" size={16} className="text-faint self-center" />
+                        <span className="num-mono">{(latestSession.distanceM / 1000).toFixed(2)} km</span>
+                        <span className="text-faint">·</span>
+                        <span className="num-mono">{fmtInt(latestSession.calories)} kcal</span>
+                        {latestSession.hrMax != null && (
+                          <>
+                            <span className="text-faint">·</span>
+                            <span className="num-mono">↑{latestSession.hrMax} bpm</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {latestSession.isStitched && (
+                          <Pill tone="activity" size="sm">
+                            <Glyph name="GitMerge" size={10} className="mr-1" />
+                            {latestSession.members.length} Segmente
+                          </Pill>
+                        )}
+                        {latestSession.workoutLoadSum != null && latestSession.workoutLoadSum > 0 && (
+                          <Pill tone="neutral" size="sm" className="num-mono">
+                            Last {latestSession.workoutLoadSum}
+                          </Pill>
+                        )}
+                      </div>
+                    </div>
+                    <Glyph name="ChevronRight" size={16} className="text-faint self-center" />
+                  </CardBody>
+                </Card>
+              </Link>
+            </Section>
+          </StaggerItem>
+        )}
+
+        {workouts.length > 1 && (
+          <StaggerItem>
+            <Section eyebrow="Trainings" title={`${workouts.length} aufgezeichnet`}>
+              <ul className="flex flex-col gap-2">
+                {workouts.map((wk) => (
+                  <li key={wk.id}>
+                    <Link href={`/workouts/${wk.id}`}>
+                      <Card hoverable>
+                        <CardBody className="flex items-center gap-4 p-4">
+                          <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-activity)]">
+                            <Glyph name={workoutTypeIcon(wk.type) as GlyphName} size={18} />
+                          </span>
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-[0.9375rem] font-medium">{wk.typeLabel}</span>
+                              <span className="num-mono text-caption">{fmtClock(wk.startTs)}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-caption">
+                              <span className="num-mono">{fmtDur(wk.durationSec)}</span>
+                              <span className="text-faint">·</span>
+                              <span className="num-mono">{(wk.distanceM / 1000).toFixed(2)} km</span>
+                              <span className="text-faint">·</span>
+                              <span className="num-mono">{fmtInt(wk.calories)} kcal</span>
+                              {wk.aerobicEffect != null && (
+                                <Pill tone="activity" size="sm" className="num-mono">
+                                  aerob {wk.aerobicEffect}
+                                </Pill>
+                              )}
+                            </div>
+                          </div>
+                          <Glyph name="ChevronRight" size={14} className="text-faint" />
+                        </CardBody>
+                      </Card>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          </StaggerItem>
+        )}
+
+        <StaggerItem>
+          <Section eyebrow="Tag" title="Schritte pro Stunde">
+            <Card>
+              <CardBody className="p-5">
+                <BarDay buckets={buckets} height={140} />
               </CardBody>
             </Card>
-          </Link>
-        </Section>
-      )}
+          </Section>
+        </StaggerItem>
 
-      {workouts.length > 1 && (
-        <Section eyebrow="Trainings" title={`${workouts.length} aufgezeichnet`}>
-          <ul className="flex flex-col gap-2">
-            {workouts.map((wk) => (
-              <li key={wk.id}>
-                <Link href={`/workouts/${wk.id}`}>
-                  <Card hoverable>
-                    <CardBody className="flex items-center gap-4 p-4">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-activity)]">
-                        <Glyph name={workoutTypeIcon(wk.type) as GlyphName} size={18} />
+        <StaggerItem>
+          <Section
+            eyebrow="14 Tage"
+            title="Schritte vs Ziel"
+            trailing={
+              <span className="text-caption num-mono text-subtle">
+                {goalReachedDays}/{dataDays} erreicht · Ziel {stepsGoal.toLocaleString("de-DE")}
+              </span>
+            }
+          >
+            <Card>
+              <CardBody className="p-5">
+                <StepsVsGoalChart bars={stepsBars} goal={stepsGoal} height={150} />
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
+
+        <StaggerItem>
+          <Section
+            eyebrow="Trainingslast"
+            title="ACWR · 28 Tage"
+            trailing={
+              hasLoad && acwrSnapshot ? (
+                <Pill tone={acwrToneFor(acwrSnapshot.band)} size="sm" className="num-mono">
+                  ACWR {acwrSnapshot.ratio} · {acwrBandLabel(acwrSnapshot.band)}
+                </Pill>
+              ) : undefined
+            }
+          >
+            <Card>
+              <CardBody className="flex flex-col gap-3 p-5">
+                {hasLoad ? (
+                  <>
+                    <AcwrChart points={acwrPoints} height={220} />
+                    <div className="flex flex-wrap items-center gap-4 text-caption">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2 rounded-full" style={{ background: "var(--color-activity)" }} aria-hidden />
+                        Akut (7 Tage)
                       </span>
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-[0.9375rem] font-medium">{wk.typeLabel}</span>
-                          <span className="num-mono text-caption">{fmtClock(wk.startTs)}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-caption">
-                          <span className="num-mono">{fmtDur(wk.durationSec)}</span>
-                          <span className="text-faint">·</span>
-                          <span className="num-mono">{(wk.distanceM / 1000).toFixed(2)} km</span>
-                          <span className="text-faint">·</span>
-                          <span className="num-mono">{fmtInt(wk.calories)} kcal</span>
-                          {wk.aerobicEffect != null && (
-                            <Pill tone="activity" size="sm" className="num-mono">
-                              aerob {wk.aerobicEffect}
-                            </Pill>
-                          )}
-                        </div>
-                      </div>
-                      <Glyph name="ChevronRight" size={14} className="text-faint" />
-                    </CardBody>
-                  </Card>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-px w-3" style={{ background: "var(--color-activity-2)" }} aria-hidden />
+                        Chronisch (28 Tage)
+                      </span>
+                      <span className="text-subtle">Optimaler Bereich 0,8 – 1,3 — Verhältnis akut zu chronisch.</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-caption text-muted py-10 text-center">
+                    Keine Trainingslast aufgezeichnet — abhängig vom Gerätetyp.
+                  </p>
+                )}
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
 
-      <Section eyebrow="Tag" title="Schritte pro Stunde">
-        <Card>
-          <CardBody className="p-5">
-            <BarDay buckets={buckets} height={140} />
-          </CardBody>
-        </Card>
-      </Section>
-
-      <Section
-        eyebrow="14 Tage"
-        title="Schritte vs Ziel"
-        trailing={
-          <span className="text-caption num-mono text-subtle">
-            {goalReachedDays}/{dataDays} erreicht · Ziel {stepsGoal.toLocaleString("de-DE")}
-          </span>
-        }
-      >
-        <Card>
-          <CardBody className="p-5">
-            <StepsVsGoalChart bars={stepsBars} goal={stepsGoal} height={150} />
-          </CardBody>
-        </Card>
-      </Section>
-
-      <Section
-        eyebrow="Trainingslast"
-        title="ACWR · 28 Tage"
-        trailing={
-          acwrSnapshot ? (
-            <Pill tone={acwrToneFor(acwrSnapshot.band)} size="sm" className="num-mono">
-              ACWR {acwrSnapshot.ratio} · {acwrBandLabel(acwrSnapshot.band)}
-            </Pill>
-          ) : undefined
-        }
-      >
-        <Card>
-          <CardBody className="flex flex-col gap-3 p-5">
-            <AcwrChart points={acwrPoints} height={220} />
-            <div className="flex flex-wrap items-center gap-4 text-caption">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block size-2 rounded-full" style={{ background: "var(--color-activity)" }} aria-hidden />
-                Akut (7 Tage)
+        <StaggerItem>
+          <Section
+            eyebrow="30 Tage"
+            title="Workout-Verteilung"
+            trailing={
+              <span className="text-caption num-mono text-subtle">
+                {totalWorkouts30d} Sessions · {fmtInt(totalMinutes30d)} min
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-px w-3" style={{ background: "var(--color-activity-2)" }} aria-hidden />
-                Chronisch (28 Tage)
-              </span>
-              <span className="text-subtle">Optimaler Bereich 0,8 – 1,3 — Verhältnis akut zu chronisch.</span>
+            }
+          >
+            <Card variant="soft">
+              <CardBody className="p-5">
+                <WorkoutDistributionList rows={distribution} totalMinutes={totalMinutes30d} />
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
+
+        <StaggerItem>
+          <Section eyebrow="Trend" title="14 Tage">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <TrendTile label="Schritte" series={stepsSeries} />
+              <TrendTile label="Aktiv" series={activeSeries} unit="min" />
+              <TrendTile label="Sitzend" series={sedentarySeries} unit="min" />
+              <TrendTile label="Aktiv-Energie" series={calSeries} unit="kcal" />
             </div>
-          </CardBody>
-        </Card>
-      </Section>
-
-      <Section
-        eyebrow="30 Tage"
-        title="Workout-Verteilung"
-        trailing={
-          <span className="text-caption num-mono text-subtle">
-            {totalWorkouts30d} Sessions · {fmtInt(totalMinutes30d)} min
-          </span>
-        }
-      >
-        <Card variant="soft">
-          <CardBody className="p-5">
-            <WorkoutDistributionList rows={distribution} totalMinutes={totalMinutes30d} />
-          </CardBody>
-        </Card>
-      </Section>
-
-      <Section eyebrow="Trend" title="14 Tage">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <TrendTile label="Schritte" series={stepsSeries} />
-          <TrendTile label="Aktiv" series={activeSeries} unit="min" />
-          <TrendTile label="Sitzend" series={sedentarySeries} unit="min" />
-          <TrendTile label="Aktiv-Energie" series={calSeries} unit="kcal" />
-        </div>
-        <Card variant="soft" className="mt-3 md:hidden">
-          <CardBody className="overflow-x-auto p-5">
-            <BandStrip items={stripItems} hrefBase="/activity/" active={date} />
-          </CardBody>
-        </Card>
-      </Section>
+            <Card variant="soft" className="mt-3 md:hidden">
+              <CardBody className="overflow-x-auto p-5">
+                <BandStrip items={stripItems} hrefBase="/activity/" active={date} />
+              </CardBody>
+            </Card>
+          </Section>
+        </StaggerItem>
+      </Stagger>
     </div>
   );
 }
@@ -434,7 +479,7 @@ function TrendTile({ label, series, unit }: { label: string; series: Array<numbe
           <span className="num text-[1.375rem] font-semibold leading-none">{last != null ? fmtInt(last) : "—"}</span>
           {unit && last != null && <span className="text-subtle num-mono text-[0.6875rem]">{unit}</span>}
         </div>
-        <Sparkline values={series.slice(-10)} tone="activity" width={160} height={28} className="mt-auto" />
+        <Sparkline values={series.slice(-10)} tone="activity" width={160} height={28} markers className="mt-auto" />
       </CardBody>
     </Card>
   );
