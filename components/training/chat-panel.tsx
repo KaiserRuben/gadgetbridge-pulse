@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { IconBadge } from "@/components/ui/icon-badge";
 
 export interface ChatPanelProps {
   initialThreadId?: string | null;
@@ -107,17 +108,18 @@ export function ChatPanel(props: ChatPanelProps) {
 
   return (
     <Card>
-      <CardBody className="p-5 flex flex-col gap-4">
-        <div className="flex items-center gap-2 flex-wrap">
+      <CardBody className="flex flex-col gap-4 p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <IconBadge icon="Brain" tone="activity" variant="solid" size="sm" />
           <Eyebrow>Frag Pulse</Eyebrow>
           <Pill tone="neutral" size="sm">remote LLM</Pill>
           {messages.some((m) => m.status === "queued") && (
             <Pill tone="down" size="sm">wartet auf Mac-Erreichbarkeit</Pill>
           )}
         </div>
-        <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
           {messages.length === 0 ? (
-            <p className="text-caption text-muted italic">
+            <p className="text-caption italic text-muted">
               Stelle deine erste Frage. Kontext (aktiver Plan, letzte 7 Tage Sessions, Schmerz-Flags) wird
               automatisch angehängt.
             </p>
@@ -126,13 +128,13 @@ export function ChatPanel(props: ChatPanelProps) {
               <div
                 key={m.id}
                 className={[
-                  "rounded-2xl p-3 border",
+                  "rounded-[var(--radius-card)] border p-3",
                   m.role === "user"
-                    ? "border-[var(--color-border)] bg-[var(--color-surface-2)]/40 self-end max-w-[85%]"
-                    : "border-[var(--color-border)] bg-[var(--color-surface)] max-w-[85%]",
+                    ? "max-w-[85%] self-end border-[var(--color-border)] bg-[var(--color-surface-2)]/40"
+                    : "max-w-[85%] border-[var(--color-border)] bg-[var(--color-surface)]",
                 ].join(" ")}
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="mb-1 flex items-center gap-2">
                   <Pill tone={m.role === "user" ? "neutral" : "activity"} size="sm">
                     {m.role === "user" ? "Du" : "Pulse"}
                   </Pill>
@@ -143,11 +145,11 @@ export function ChatPanel(props: ChatPanelProps) {
                     <Pill tone="down" size="sm">Fehler</Pill>
                   )}
                 </div>
-                <p className="text-[0.9375rem] whitespace-pre-wrap break-words">
+                <p className="whitespace-pre-wrap break-words text-body">
                   {m.content ?? (m.status === "queued" ? "…" : "(leer)")}
                 </p>
                 {m.error && (
-                  <p className="text-caption text-[var(--color-warn,#b76e00)] mt-1">{m.error}</p>
+                  <p className="mt-1 text-caption text-[var(--color-band-down)]">{m.error}</p>
                 )}
               </div>
             ))
@@ -159,19 +161,19 @@ export function ChatPanel(props: ChatPanelProps) {
             onChange={(e) => setDraft(e.target.value)}
             rows={2}
             placeholder="z.B. „Soll ich heute Tag B machen, Rücken fühlt sich angespannt an?“"
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-[0.9375rem]"
+            className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-body"
           />
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={send}
               disabled={busy || draft.trim().length === 0}
-              className="px-4 h-10 rounded-xl bg-[var(--color-activity)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-60 text-[0.9375rem]"
+              className="h-10 rounded-[var(--radius-card)] bg-[var(--color-activity)] px-4 text-body text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {busy ? "…" : "Senden"}
             </button>
             {error && (
-              <span className="text-caption text-[var(--color-warn,#b76e00)]" role="alert">
+              <span className="text-caption text-[var(--color-band-down)]" role="alert">
                 {error}
               </span>
             )}

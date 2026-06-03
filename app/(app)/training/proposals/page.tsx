@@ -2,11 +2,13 @@ import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 import { listProposals } from "@/lib/training/proposal";
 
@@ -26,8 +28,15 @@ export default async function ProposalsPage() {
   const resolved = listProposals().filter((p) => p.status !== "pending").slice(0, 30);
 
   return (
-    <div className="flex flex-col gap-8">
-      <Section eyebrow="Plan-Vorschläge" title="Offen">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Training"
+        title="Plan-Vorschläge"
+        sub="Coach-generierte Plan-Anpassungen zum Review"
+        back={{ href: "/training", label: "Training" }}
+      />
+
+      <Section eyebrow="Offen" title="Warten auf Review">
         {pending.length === 0 ? (
           <Card variant="soft">
             <CardBody className="p-5 text-caption text-muted">
@@ -35,49 +44,47 @@ export default async function ProposalsPage() {
             </CardBody>
           </Card>
         ) : (
-          <div className="flex flex-col gap-3">
+          <Stagger className="flex flex-col gap-3">
             {pending.map((p) => (
-              <Link
-                key={p.id}
-                href={`/training/proposals/${p.id}`}
-                className="block"
-              >
-                <Card hoverable>
-                  <CardBody className="p-5 flex flex-col gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Eyebrow>{fmtDate(p.generated_at)}</Eyebrow>
-                      <Pill tone="activity" size="sm">{p.scope}</Pill>
-                      <Pill tone="neutral" size="sm">v{p.target_plan_version}</Pill>
-                      <Pill tone="steady" size="sm">{p.diff.length} Änderung{p.diff.length === 1 ? "" : "en"}</Pill>
-                    </div>
-                    <p className="text-[0.9375rem]">{p.summary_de ?? p.reasoning_trace.slice(0, 200)}</p>
-                    <div className="flex items-center gap-2 text-caption text-faint">
-                      <Glyph name="ChevronRight" size={14} />
-                      Diff prüfen
-                    </div>
-                  </CardBody>
-                </Card>
-              </Link>
+              <StaggerItem key={p.id}>
+                <Link href={`/training/proposals/${p.id}`} className="block">
+                  <Card hoverable>
+                    <CardBody className="flex flex-col gap-2 p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Eyebrow>{fmtDate(p.generated_at)}</Eyebrow>
+                        <Pill tone="activity" size="sm">{p.scope}</Pill>
+                        <Pill tone="neutral" size="sm">v{p.target_plan_version}</Pill>
+                        <Pill tone="steady" size="sm">{p.diff.length} Änderung{p.diff.length === 1 ? "" : "en"}</Pill>
+                      </div>
+                      <p className="text-body">{p.summary_de ?? p.reasoning_trace.slice(0, 200)}</p>
+                      <div className="flex items-center gap-2 text-caption text-faint">
+                        <Glyph name="ChevronRight" size={14} />
+                        Diff prüfen
+                      </div>
+                    </CardBody>
+                  </Card>
+                </Link>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         )}
       </Section>
 
-      <Section eyebrow="Historie" title="Letzte aufgelöst">
+      <Section eyebrow="Historie" title="Zuletzt aufgelöst">
         <Card variant="soft">
-          <CardBody className="p-3">
+          <CardBody className="p-2">
             {resolved.length === 0 ? (
               <div className="p-4 text-caption text-muted">Noch keine aufgelösten Vorschläge.</div>
             ) : (
-              <ul className="flex flex-col divide-y divide-[var(--color-border)]">
+              <Stagger className="flex flex-col divide-y divide-[var(--color-border)]">
                 {resolved.map((p) => (
-                  <li key={p.id}>
+                  <StaggerItem key={p.id}>
                     <Link
                       href={`/training/proposals/${p.id}`}
-                      className="flex items-center gap-3 px-3 h-12 rounded-xl hover:bg-[var(--color-surface-2)]/50 transition-colors"
+                      className="flex h-12 items-center gap-3 rounded-[var(--radius-chip)] px-3 transition-colors hover:bg-[var(--color-surface-2)]"
                     >
-                      <span className="num-mono text-caption w-[88px]">{fmtDate(p.generated_at)}</span>
-                      <span className="flex-1 truncate text-[0.9375rem]">
+                      <span className="w-[88px] num-mono text-caption">{fmtDate(p.generated_at)}</span>
+                      <span className="flex-1 truncate text-body">
                         {p.summary_de ?? p.reasoning_trace.slice(0, 140)}
                       </span>
                       <Pill
@@ -88,9 +95,9 @@ export default async function ProposalsPage() {
                       </Pill>
                       <Glyph name="ChevronRight" size={14} className="text-faint" />
                     </Link>
-                  </li>
+                  </StaggerItem>
                 ))}
-              </ul>
+              </Stagger>
             )}
           </CardBody>
         </Card>

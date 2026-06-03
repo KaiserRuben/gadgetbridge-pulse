@@ -75,19 +75,19 @@ export function StartSessionButton(props: StartSessionButtonProps) {
   }
 
   return (
-    <div className="flex flex-col gap-2 items-stretch">
+    <div className="flex flex-col items-stretch gap-2">
       <button
         type="button"
         onClick={start}
         disabled={busy}
         aria-busy={busy}
         className={[
-          "inline-flex items-center justify-between gap-3 px-5 py-3 rounded-2xl transition-colors",
+          "inline-flex items-center justify-between gap-3 rounded-[var(--radius-card)] px-5 py-3 transition-colors",
           "border border-[var(--color-border)]",
           "bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] active:bg-[var(--color-surface-3)]",
-          "disabled:opacity-60 disabled:pointer-events-none",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-sleep)]",
-          props.prominent ? "text-[1.0625rem] font-medium" : "text-[0.9375rem]",
+          "disabled:pointer-events-none disabled:opacity-60",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-activity)]",
+          props.prominent ? "text-[1.0625rem] font-medium" : "text-body",
         ].join(" ")}
       >
         <span className="truncate">{props.label}</span>
@@ -96,7 +96,7 @@ export function StartSessionButton(props: StartSessionButtonProps) {
         </Pill>
       </button>
       {error && (
-        <span className="text-caption text-[var(--color-warn,#b76e00)]" role="alert">
+        <span className="text-caption text-[var(--color-band-down)]" role="alert">
           {error}
         </span>
       )}

@@ -1,12 +1,14 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
-import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Section } from "@/components/ui/section";
+import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 import { readProposal } from "@/lib/training/proposal";
 import { ProposalActions } from "@/components/training/proposal-actions";
@@ -44,71 +46,80 @@ export default async function ProposalDetailPage({
   if (!proposal) return notFound();
 
   return (
-    <div className="flex flex-col gap-8">
-      <Card glow="activity">
-        <CardBody className="p-6 flex flex-col gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Eyebrow>Vorschlag #{proposal.id} · {fmtDateTime(proposal.generated_at)}</Eyebrow>
-            <Pill tone="activity" size="sm">{proposal.scope}</Pill>
-            <Pill tone="neutral" size="sm">Plan v{proposal.target_plan_version}</Pill>
-            <Pill
-              tone={
-                proposal.status === "pending"
-                  ? "steady"
-                  : proposal.status === "accepted"
-                    ? "up"
-                    : proposal.status === "rejected"
-                      ? "down"
-                      : "neutral"
-              }
-              size="sm"
-            >
-              {proposal.status}
-            </Pill>
-          </div>
-          {proposal.summary_de && <h1 className="text-hero">{proposal.summary_de}</h1>}
-          <p className="text-body text-muted max-w-[64ch] whitespace-pre-wrap">
-            {proposal.reasoning_trace}
-          </p>
-          {proposal.resolution_note && (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-3">
-              <Eyebrow>Begründung</Eyebrow>
-              <p className="text-caption mt-1">{proposal.resolution_note}</p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow={`Vorschlag #${proposal.id}`}
+        title={proposal.summary_de ?? `Plan-Vorschlag #${proposal.id}`}
+        sub={fmtDateTime(proposal.generated_at)}
+        back={{ href: "/training/proposals", label: "Vorschläge" }}
+      />
+
+      <FadeRise>
+        <Card glow="activity">
+          <CardBody className="flex flex-col gap-3 p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Pill tone="activity" size="sm">{proposal.scope}</Pill>
+              <Pill tone="neutral" size="sm">Plan v{proposal.target_plan_version}</Pill>
+              <Pill
+                tone={
+                  proposal.status === "pending"
+                    ? "steady"
+                    : proposal.status === "accepted"
+                      ? "up"
+                      : proposal.status === "rejected"
+                        ? "down"
+                        : "neutral"
+                }
+                size="sm"
+              >
+                {proposal.status}
+              </Pill>
             </div>
-          )}
-        </CardBody>
-      </Card>
+            <p className="max-w-[64ch] whitespace-pre-wrap text-body text-muted">
+              {proposal.reasoning_trace}
+            </p>
+            {proposal.resolution_note && (
+              <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-3">
+                <Eyebrow>Begründung</Eyebrow>
+                <p className="mt-1 text-caption">{proposal.resolution_note}</p>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </FadeRise>
 
       <Section eyebrow="Änderungen" title={`${proposal.diff.length} Diff-Eintr${proposal.diff.length === 1 ? "ag" : "äge"}`}>
-        <div className="flex flex-col gap-3">
+        <Stagger className="flex flex-col gap-3">
           {proposal.diff.map((op, idx) => (
-            <Card key={idx}>
-              <CardBody className="p-4 flex flex-col gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Pill tone="neutral" size="sm">{op.op}</Pill>
-                  <code className="text-caption num-mono break-all">{op.path}</code>
-                </div>
-                {op.human_de && <p className="text-[0.9375rem]">{op.human_de}</p>}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <DiffPanel label="Vorher" content={fmtValue(op.before)} tone="down" />
-                  <DiffPanel label="Nachher" content={fmtValue(op.after)} tone="up" />
-                </div>
-              </CardBody>
-            </Card>
+            <StaggerItem key={idx}>
+              <Card>
+                <CardBody className="flex flex-col gap-2 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone="neutral" size="sm">{op.op}</Pill>
+                    <code className="break-all num-mono text-caption">{op.path}</code>
+                  </div>
+                  {op.human_de && <p className="text-body">{op.human_de}</p>}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <DiffPanel label="Vorher" content={fmtValue(op.before)} tone="down" />
+                    <DiffPanel label="Nachher" content={fmtValue(op.after)} tone="up" />
+                  </div>
+                </CardBody>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </Section>
 
       {proposal.cited_data.length > 0 && (
         <Section eyebrow="Datenbasis" title={`${proposal.cited_data.length} Zitat${proposal.cited_data.length === 1 ? "" : "e"}`}>
           <Card variant="soft">
-            <CardBody className="p-3">
+            <CardBody className="p-2">
               <ul className="flex flex-col divide-y divide-[var(--color-border)]">
                 {proposal.cited_data.map((c, idx) => (
-                  <li key={idx} className="flex items-center gap-3 px-3 h-12">
+                  <li key={idx} className="flex h-12 items-center gap-3 px-3">
                     <Pill tone="neutral" size="sm">{c.kind}</Pill>
-                    <code className="text-caption num-mono">{c.ref_id}</code>
-                    <span className="flex-1 truncate text-[0.9375rem]">{c.summary}</span>
+                    <code className="num-mono text-caption">{c.ref_id}</code>
+                    <span className="flex-1 truncate text-body">{c.summary}</span>
                   </li>
                 ))}
               </ul>
@@ -124,24 +135,18 @@ export default async function ProposalDetailPage({
           </CardBody>
         </Card>
       </Section>
-
-      <div>
-        <Link href="/training/proposals" className="text-caption text-muted hover:text-[var(--color-text)]">
-          ← Alle Vorschläge
-        </Link>
-      </div>
     </div>
   );
 }
 
 function DiffPanel({ label, content, tone }: { label: string; content: string; tone: "up" | "down" }) {
-  const color = tone === "up" ? "var(--color-activity)" : "var(--color-warn,#b76e00)";
+  const color = tone === "up" ? "var(--color-activity)" : "var(--color-band-down)";
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/40 p-3 flex flex-col gap-1">
-      <span className="text-faint text-[0.6875rem] uppercase tracking-wide" style={{ color }}>
+    <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/40 p-3">
+      <span className="eyebrow" style={{ color }}>
         {label}
       </span>
-      <code className="text-caption num-mono whitespace-pre-wrap break-all">{content}</code>
+      <code className="whitespace-pre-wrap break-all num-mono text-caption">{content}</code>
     </div>
   );
 }

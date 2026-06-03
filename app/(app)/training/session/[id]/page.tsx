@@ -2,8 +2,9 @@ import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { FadeRise } from "@/components/motion/fade-rise";
 
 import { loadSessionView } from "@/lib/training/session-view";
 import { SessionRunner } from "@/components/training/session-runner";
@@ -28,24 +29,31 @@ export default async function SessionPage({
     // Free pick without a session template — minimal placeholder until the
     // free-logging UI lands. Still lets the user finish/abandon.
     return (
-      <Card>
-        <CardBody className="p-6 flex flex-col gap-3">
-          <Eyebrow>Session</Eyebrow>
-          <h1 className="text-hero">{templateLabel}</h1>
-          <p className="text-body text-muted max-w-[60ch]">
-            Diese Session wurde ohne festes Template gestartet. Freies Logging
-            folgt in einer späteren Iteration.
-          </p>
-          <SessionRunner
-            session={bundle.session}
-            templateLabel={templateLabel}
-            prescribed={[]}
-            sets={bundle.sets}
-            pain={bundle.pain}
-            lastTime={bundle.lastTime}
-          />
-        </CardBody>
-      </Card>
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow="Session"
+          title={templateLabel}
+          back={{ href: "/training", label: "Training" }}
+        />
+        <FadeRise>
+          <Card>
+            <CardBody className="flex flex-col gap-3 p-5">
+              <p className="max-w-[60ch] text-body text-muted">
+                Diese Session wurde ohne festes Template gestartet. Freies Logging
+                folgt in einer späteren Iteration.
+              </p>
+              <SessionRunner
+                session={bundle.session}
+                templateLabel={templateLabel}
+                prescribed={[]}
+                sets={bundle.sets}
+                pain={bundle.pain}
+                lastTime={bundle.lastTime}
+              />
+            </CardBody>
+          </Card>
+        </FadeRise>
+      </div>
     );
   }
 

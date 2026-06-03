@@ -48,23 +48,23 @@ export function ProposalActions(props: ProposalActionsProps) {
   return (
     <div className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
-        <span className="text-faint text-[0.6875rem] uppercase tracking-wide">
+        <span className="eyebrow">
           Begründung (optional, wird im LLM-Kontext zitiert)
         </span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-[0.9375rem]"
+          className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-body"
           placeholder="z.B. „Knie noch nicht stabil genug für Volumen-Sprung — auf Status quo halten.“"
         />
       </label>
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => submit("accept")}
           disabled={busy != null}
-          className="px-4 h-10 rounded-xl bg-[var(--color-activity)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-60 text-[0.9375rem]"
+          className="h-10 rounded-[var(--radius-card)] bg-[var(--color-activity)] px-4 text-body text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {busy === "accept" ? "…" : "Annehmen"}
         </button>
@@ -72,13 +72,13 @@ export function ProposalActions(props: ProposalActionsProps) {
           type="button"
           onClick={() => submit("reject")}
           disabled={busy != null}
-          className="px-4 h-10 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-[0.9375rem]"
+          className="h-10 rounded-[var(--radius-card)] border border-[var(--color-border)] px-4 text-body transition-colors hover:bg-[var(--color-surface-2)]"
         >
           {busy === "reject" ? "…" : "Ablehnen"}
         </button>
       </div>
       {error && (
-        <p className="text-caption text-[var(--color-warn,#b76e00)]" role="alert">
+        <p className="text-caption text-[var(--color-band-down)]" role="alert">
           {error}
         </p>
       )}

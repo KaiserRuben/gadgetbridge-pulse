@@ -7,6 +7,8 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { FadeRise } from "@/components/motion/fade-rise";
 
 import type {
   TrainingExerciseV1,
@@ -142,13 +144,14 @@ export function SessionRunner(props: SessionRunnerProps) {
   if (items.length === 0) {
     return (
       <Card>
-        <CardBody className="p-6">
+        <CardBody className="flex flex-col gap-3 p-5">
+          <IconBadge icon="Dumbbell" tone="activity" variant="solid" size="md" />
           <Eyebrow>Eigene Session</Eyebrow>
-          <p className="text-body text-muted mt-2">
+          <p className="text-body text-muted">
             Diese Session hat kein festes Template — freies Logging folgt in einer
             späteren Iteration. Bis dahin: <em>End Session</em> beendet sauber.
           </p>
-          <FinishButton sessionId={props.session.id} className="mt-4" />
+          <FinishButton sessionId={props.session.id} className="mt-1 self-start" />
         </CardBody>
       </Card>
     );
@@ -204,12 +207,13 @@ export function SessionRunner(props: SessionRunnerProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <FadeRise className="flex flex-col gap-6">
       {/* ── Header ─────────────────────────────────────────────── */}
       <Card glow="activity">
-        <CardBody className="p-6 flex flex-col gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Eyebrow>Session läuft</Eyebrow>
+        <CardBody className="flex flex-col gap-3 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <IconBadge icon="Dumbbell" tone="activity" variant="solid" size="md" />
+            <Eyebrow>{completed ? "Session" : "Session läuft"}</Eyebrow>
             <Pill tone="neutral" size="sm">{props.templateLabel}</Pill>
             <Pill tone="neutral" size="sm">Plan v{props.session.plan_version}</Pill>
             {props.pain.length > 0 && (
@@ -217,7 +221,7 @@ export function SessionRunner(props: SessionRunnerProps) {
             )}
             {completed && <Pill tone="up" size="sm">{props.session.state}</Pill>}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-3">
             <ExerciseStrip
               items={items}
               activeIdx={activeIdx}
@@ -231,8 +235,8 @@ export function SessionRunner(props: SessionRunnerProps) {
 
       {/* ── Active exercise ────────────────────────────────────── */}
       <Card>
-        <CardBody className="p-6 flex flex-col gap-4">
-          <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <CardBody className="flex flex-col gap-4 p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
               <Glyph name="Dumbbell" size={16} className="text-muted" />
               <h2 className="text-h2">{active.exercise.display_de}</h2>
@@ -279,12 +283,12 @@ export function SessionRunner(props: SessionRunnerProps) {
           </div>
 
           {/* Mid-session actions */}
-          <div className="flex items-center gap-2 flex-wrap mt-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setPainOpen(active.exercise.id)}
               disabled={completed}
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-50"
             >
               <Glyph name="AlertTriangle" size={14} />
               Pain-Flag
@@ -293,7 +297,7 @@ export function SessionRunner(props: SessionRunnerProps) {
               type="button"
               onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))}
               disabled={activeIdx === 0}
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-50"
             >
               <Glyph name="ChevronLeft" size={14} />
               Zurück
@@ -302,7 +306,7 @@ export function SessionRunner(props: SessionRunnerProps) {
               type="button"
               onClick={() => setActiveIdx(Math.min(items.length - 1, activeIdx + 1))}
               disabled={activeIdx === items.length - 1}
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-50"
             >
               Nächste
               <Glyph name="ChevronRight" size={14} />
@@ -323,7 +327,7 @@ export function SessionRunner(props: SessionRunnerProps) {
           }}
         />
       )}
-    </div>
+    </FadeRise>
   );
 }
 
@@ -361,11 +365,11 @@ function ExerciseStrip(props: {
             type="button"
             onClick={() => props.onPick(i)}
             className={[
-              "px-2.5 h-8 rounded-xl text-caption transition-colors",
+              "h-8 rounded-[var(--radius-chip)] px-2.5 text-caption transition-colors",
               "border",
               isActive
                 ? "border-[var(--color-activity)] bg-[var(--color-surface-3)] text-[var(--color-text)]"
-                : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-muted",
+                : "border-[var(--color-border)] text-muted hover:bg-[var(--color-surface-2)]",
             ].join(" ")}
           >
             {it.exercise.display_de}
@@ -389,8 +393,8 @@ function SetRow(props: {
 }) {
   const usesDuration = props.prescription.duration_sec != null;
   return (
-    <div className="grid grid-cols-12 items-center gap-2 p-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/40">
-      <span className="num-mono text-caption col-span-1">{props.setIdx}</span>
+    <div className="grid grid-cols-12 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)]/40 p-3">
+      <span className="col-span-1 num-mono text-caption">{props.setIdx}</span>
       {usesDuration ? (
         <NumInput
           label="sek"
@@ -426,13 +430,13 @@ function SetRow(props: {
         type="button"
         onClick={props.onSave}
         disabled={props.draft.saving || props.disabled}
-        className="col-span-2 h-10 rounded-xl bg-[var(--color-activity)]/15 text-[var(--color-activity)] hover:bg-[var(--color-activity)]/25 disabled:opacity-50 text-caption"
+        className="col-span-2 h-10 rounded-[var(--radius-chip)] bg-[var(--color-activity)]/15 text-caption text-[var(--color-activity)] transition-colors hover:bg-[var(--color-activity)]/25 disabled:opacity-50"
         aria-label={`Satz ${props.setIdx} speichern`}
       >
         {props.draft.saving ? "…" : "Speichern"}
       </button>
       {props.draft.error && (
-        <span className="col-span-12 text-caption text-[var(--color-warn,#b76e00)]">
+        <span className="col-span-12 text-caption text-[var(--color-band-down)]">
           {props.draft.error}
         </span>
       )}
@@ -464,14 +468,14 @@ function NumInput(props: {
   const spanCls = COL_SPAN[props.colSpan] ?? "col-span-3";
   return (
     <label className={`${spanCls} flex flex-col gap-0.5`}>
-      <span className="text-faint text-[0.6875rem] uppercase tracking-wide">{props.label}</span>
+      <span className="eyebrow">{props.label}</span>
       <input
         type="text"
         inputMode="decimal"
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         disabled={props.disabled}
-        className="num-mono h-10 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-[0.9375rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-activity)] disabled:opacity-60"
+        className="h-10 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 num-mono text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-activity)] disabled:opacity-60"
       />
     </label>
   );
@@ -568,7 +572,7 @@ function FinishButton(props: { sessionId: string; className?: string }) {
         type="button"
         onClick={() => setOpen(true)}
         className={[
-          "inline-flex items-center gap-2 px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption",
+          "inline-flex h-9 items-center gap-2 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)]",
           props.className ?? "",
         ].join(" ")}
       >
@@ -577,12 +581,15 @@ function FinishButton(props: { sessionId: string; className?: string }) {
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 grid place-items-center px-4"
+          className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 flex flex-col gap-3">
-            <h3 className="text-h3">Session beenden</h3>
+          <div
+            className="flex w-full max-w-md flex-col gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+            style={{ boxShadow: "var(--shadow-pop)" }}
+          >
+            <h3 className="text-title">Session beenden</h3>
             <div className="flex flex-col gap-1">
               <Eyebrow>Energie nach Session</Eyebrow>
               <div className="flex gap-1">
@@ -592,7 +599,7 @@ function FinishButton(props: { sessionId: string; className?: string }) {
                     type="button"
                     onClick={() => setEnergy(v)}
                     className={[
-                      "flex-1 h-10 rounded-xl border text-caption",
+                      "h-10 flex-1 rounded-[var(--radius-chip)] border text-caption transition-colors",
                       energy === v
                         ? "border-[var(--color-activity)] bg-[var(--color-surface-3)]"
                         : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
@@ -609,7 +616,7 @@ function FinishButton(props: { sessionId: string; className?: string }) {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
-                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-[0.9375rem]"
+                className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-body"
                 placeholder="Frei lassen wenn nichts zu sagen."
               />
             </div>
@@ -620,10 +627,10 @@ function FinishButton(props: { sessionId: string; className?: string }) {
                   type="button"
                   onClick={() => setState("completed")}
                   className={[
-                    "flex-1 h-10 rounded-xl border text-caption",
+                    "h-10 flex-1 rounded-[var(--radius-chip)] border text-caption transition-colors",
                     state === "completed"
                       ? "border-[var(--color-activity)] bg-[var(--color-surface-3)]"
-                      : "border-[var(--color-border)]",
+                      : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
                   ].join(" ")}
                 >
                   Abgeschlossen
@@ -632,10 +639,10 @@ function FinishButton(props: { sessionId: string; className?: string }) {
                   type="button"
                   onClick={() => setState("abandoned")}
                   className={[
-                    "flex-1 h-10 rounded-xl border text-caption",
+                    "h-10 flex-1 rounded-[var(--radius-chip)] border text-caption transition-colors",
                     state === "abandoned"
-                      ? "border-[var(--color-warn,#b76e00)] bg-[var(--color-surface-3)]"
-                      : "border-[var(--color-border)]",
+                      ? "border-[var(--color-band-down)] bg-[var(--color-surface-3)]"
+                      : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
                   ].join(" ")}
                 >
                   Abgebrochen
@@ -643,15 +650,15 @@ function FinishButton(props: { sessionId: string; className?: string }) {
               </div>
             </div>
             {error && (
-              <p className="text-caption text-[var(--color-warn,#b76e00)]" role="alert">
+              <p className="text-caption text-[var(--color-band-down)]" role="alert">
                 {error}
               </p>
             )}
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption"
+                className="h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)]"
               >
                 Abbrechen
               </button>
@@ -659,7 +666,7 @@ function FinishButton(props: { sessionId: string; className?: string }) {
                 type="button"
                 onClick={finish}
                 disabled={busy}
-                className="px-4 h-9 rounded-xl bg-[var(--color-activity)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-60 text-caption"
+                className="h-9 rounded-[var(--radius-chip)] bg-[var(--color-activity)] px-4 text-caption text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {busy ? "…" : "Speichern"}
               </button>
@@ -706,9 +713,12 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 grid place-items-center px-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 flex flex-col gap-3">
-        <h3 className="text-h3">Pain-Flag</h3>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-4" role="dialog" aria-modal="true">
+      <div
+        className="flex w-full max-w-md flex-col gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+        style={{ boxShadow: "var(--shadow-pop)" }}
+      >
+        <h3 className="text-title">Pain-Flag</h3>
         <div className="flex flex-col gap-1">
           <Eyebrow>Ort</Eyebrow>
           <div className="grid grid-cols-3 gap-1.5">
@@ -718,7 +728,7 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
                 type="button"
                 onClick={() => setLocation(c)}
                 className={[
-                  "h-9 rounded-xl border text-caption",
+                  "h-9 rounded-[var(--radius-chip)] border text-caption transition-colors",
                   location === c
                     ? "border-[var(--color-activity)] bg-[var(--color-surface-3)]"
                     : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
@@ -738,7 +748,7 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
                 type="button"
                 onClick={() => setSide(s)}
                 className={[
-                  "h-9 rounded-xl border text-caption",
+                  "h-9 rounded-[var(--radius-chip)] border text-caption transition-colors",
                   side === s
                     ? "border-[var(--color-activity)] bg-[var(--color-surface-3)]"
                     : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
@@ -756,10 +766,10 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
               type="button"
               onClick={() => setSeverity("mild")}
               className={[
-                "h-10 rounded-xl border text-caption",
+                "h-10 rounded-[var(--radius-chip)] border text-caption transition-colors",
                 severity === "mild"
                   ? "border-[var(--color-activity)] bg-[var(--color-surface-3)]"
-                  : "border-[var(--color-border)]",
+                  : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
               ].join(" ")}
             >
               Leicht
@@ -768,10 +778,10 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
               type="button"
               onClick={() => setSeverity("sharp")}
               className={[
-                "h-10 rounded-xl border text-caption",
+                "h-10 rounded-[var(--radius-chip)] border text-caption transition-colors",
                 severity === "sharp"
-                  ? "border-[var(--color-warn,#b76e00)] bg-[var(--color-surface-3)]"
-                  : "border-[var(--color-border)]",
+                  ? "border-[var(--color-band-down)] bg-[var(--color-surface-3)]"
+                  : "border-[var(--color-border)] hover:bg-[var(--color-surface-2)]",
               ].join(" ")}
             >
               Stechend
@@ -784,16 +794,16 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             rows={2}
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-[0.9375rem]"
+            className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-body"
             placeholder="z.B. „Druck am Innenmeniskus nach 2. Satz, geht in 30s weg.“"
           />
         </div>
-        {error && <p className="text-caption text-[var(--color-warn,#b76e00)]">{error}</p>}
-        <div className="flex gap-2 justify-end">
+        {error && <p className="text-caption text-[var(--color-band-down)]">{error}</p>}
+        <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={props.onClose}
-            className="px-3 h-9 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-caption"
+            className="h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] px-3 text-caption transition-colors hover:bg-[var(--color-surface-2)]"
           >
             Abbrechen
           </button>
@@ -801,7 +811,7 @@ function PainDialog(props: { sessionId: string; exerciseId: string; onClose: () 
             type="button"
             onClick={submit}
             disabled={busy}
-            className="px-4 h-9 rounded-xl bg-[var(--color-activity)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-60 text-caption"
+            className="h-9 rounded-[var(--radius-chip)] bg-[var(--color-activity)] px-4 text-caption text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {busy ? "…" : "Flaggen"}
           </button>

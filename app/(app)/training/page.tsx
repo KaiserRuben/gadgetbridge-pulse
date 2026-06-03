@@ -2,17 +2,19 @@ import "server-only";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyStateCard } from "@/components/ui/empty-state";
-import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 
 import { readActivePlan } from "@/lib/training/plan";
 import { listPickerOptions, suggestTodaySession } from "@/lib/training/scheduler";
-import { listSessions } from "@/lib/training/session";
+import { listSessions, sweepStaleSessions } from "@/lib/training/session";
 import { computePainRecurrenceAlarms } from "@/lib/training/alarms";
 import { listProposals } from "@/lib/training/proposal";
 import { loadTrainingInsight } from "@/lib/v3-loaders";
@@ -65,8 +67,16 @@ function fmtTime(iso: string): string {
   });
 }
 
+const STALE_SESSION_MS = 12 * 3600 * 1000;
+
 export default async function TrainingPage() {
   noStore();
+  try {
+    sweepStaleSessions(STALE_SESSION_MS);
+  } catch {
+    // Mac dev / read-only role: sweep is Pi-only. Stale sessions stay
+    // visible as "läuft" until the Pi renders this page next.
+  }
   const plan = readActivePlan();
   const now = new Date();
   const today = localDateKeyDe(now);
@@ -101,13 +111,28 @@ export default async function TrainingPage() {
   if (!plan) return <ColdStart />;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Training"
+        title="Training"
+        sub={`${fmtRecent(today)} · ${phase?.label ?? plan.payload.current_phase_id} · Plan v${plan.version}`}
+        trailing={
+          <Link
+            href="/training/chat"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-surface-soft)] px-3 text-xs font-medium ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:bg-[var(--color-surface-2)]"
+          >
+            <Glyph name="Brain" size={14} />
+            Frag Pulse
+          </Link>
+        }
+      />
+
       {/* ── Today / Suggestion ─────────────────────────────────────── */}
       <FadeRise>
         <Card glow="activity">
-          <CardBody className="p-6 lg:p-8 flex flex-col gap-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Eyebrow>Training · {fmtRecent(today)}</Eyebrow>
+          <CardBody className="flex flex-col gap-4 p-5 lg:p-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <IconBadge icon="Dumbbell" tone="activity" variant="solid" size="md" />
               <Pill tone="neutral" size="sm">{phase?.label ?? plan.payload.current_phase_id}</Pill>
               <Pill tone="neutral" size="sm">Plan v{plan.version}</Pill>
               {insightUsable && (
@@ -116,7 +141,7 @@ export default async function TrainingPage() {
                 </Pill>
               )}
             </div>
-            <h1 className="text-hero">
+            <h2 className="text-h2 text-[var(--color-text-strong)]">
               {insightUsable && insight?.headline
                 ? insight.headline
                 : suggestedTemplate
@@ -128,14 +153,14 @@ export default async function TrainingPage() {
                       : scheduleSuggestion.kind === "flex"
                         ? "Kein fester Slot — wähle frei."
                         : "Kein aktiver Plan."}
-            </h1>
+            </h2>
             {insightUsable && insight?.prescription?.justification_de && (
-              <p className="text-body text-muted max-w-[64ch]">
+              <p className="max-w-[64ch] text-body text-muted">
                 {insight.prescription.justification_de}
               </p>
             )}
             {!insightUsable && suggestedTemplate && (
-              <p className="text-body text-muted max-w-[64ch]">
+              <p className="max-w-[64ch] text-body text-muted">
                 {suggestedTemplate.exercises.length} Übung
                 {suggestedTemplate.exercises.length === 1 ? "" : "en"} ·{" "}
                 {suggestedTemplate.estimated_duration_min ?? "?"} min ·{" "}
@@ -176,7 +201,7 @@ export default async function TrainingPage() {
             {inProgress && (
               <Link
                 href={`/training/session/${inProgress.id}`}
-                className="inline-flex items-center gap-2 mt-2 text-caption text-muted hover:text-[var(--color-text)] transition-colors"
+                className="mt-2 inline-flex items-center gap-2 text-caption text-muted transition-colors hover:text-[var(--color-text)]"
               >
                 <Glyph name="Pause" size={14} />
                 Laufende Session vom {fmtTime(inProgress.started_at)} fortsetzen
@@ -189,59 +214,68 @@ export default async function TrainingPage() {
       {/* ── Alarms (pain recurrence + proposals) ──────────────────── */}
       {(alarms.length > 0 || pendingProposals > 0) && (
         <Section eyebrow="Hinweise" title="Aufmerksamkeit">
-          <div className="flex flex-col gap-2">
+          <Stagger className="flex flex-col gap-2">
             {alarms.map((a) => (
-              <Card key={a.id} variant="soft">
-                <CardBody className="p-3 flex items-center gap-3">
-                  <Pill
-                    tone={a.severity === "critical" ? "down" : a.severity === "warn" ? "down" : "neutral"}
-                    size="sm"
-                  >
-                    {a.severity}
-                  </Pill>
-                  <span className="flex-1 text-[0.9375rem]">{a.message_de}</span>
-                </CardBody>
-              </Card>
-            ))}
-            {pendingProposals > 0 && (
-              <Link href="/training/proposals" className="block">
-                <Card hoverable>
-                  <CardBody className="p-3 flex items-center gap-3">
-                    <Pill tone="activity" size="sm">
-                      {pendingProposals} offen
+              <StaggerItem key={a.id}>
+                <Card variant="soft">
+                  <CardBody className="flex items-center gap-3 p-4">
+                    <IconBadge icon="AlertTriangle" tone="stress" size="sm" />
+                    <Pill
+                      tone={a.severity === "critical" ? "down" : a.severity === "warn" ? "down" : "neutral"}
+                      size="sm"
+                    >
+                      {a.severity}
                     </Pill>
-                    <span className="flex-1 text-[0.9375rem]">
-                      Plan-Vorschläge warten auf Review.
-                    </span>
-                    <Glyph name="ChevronRight" size={14} className="text-faint" />
+                    <span className="flex-1 text-body">{a.message_de}</span>
                   </CardBody>
                 </Card>
-              </Link>
+              </StaggerItem>
+            ))}
+            {pendingProposals > 0 && (
+              <StaggerItem>
+                <Link href="/training/proposals" className="block">
+                  <Card hoverable>
+                    <CardBody className="flex items-center gap-3 p-4">
+                      <IconBadge icon="GitMerge" tone="activity" size="sm" />
+                      <Pill tone="activity" size="sm">
+                        {pendingProposals} offen
+                      </Pill>
+                      <span className="flex-1 text-body">
+                        Plan-Vorschläge warten auf Review.
+                      </span>
+                      <Glyph name="ChevronRight" size={14} className="text-faint" />
+                    </CardBody>
+                  </Card>
+                </Link>
+              </StaggerItem>
             )}
-          </div>
+          </Stagger>
         </Section>
       )}
 
       {/* ── Picker: any defined template ──────────────────────────── */}
       <Section eyebrow="Alle Sessions" title="Frei wählen">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {pickerOptions.map((opt) => {
             const isSuggested =
               opt.kind === "session_template" &&
               opt.session_template_id === suggestedTemplateId;
             const deviation = isSuggested ? null : "user_choice";
             return (
-              <StartSessionButton
+              <StaggerItem
                 key={`${opt.kind}-${opt.session_template_id ?? opt.label}`}
-                periodKey={today}
-                sessionTemplateId={opt.session_template_id}
-                deviationReason={deviation}
-                label={opt.label}
-                tone={opt.kind === "cardio" ? "heart" : "neutral"}
-              />
+              >
+                <StartSessionButton
+                  periodKey={today}
+                  sessionTemplateId={opt.session_template_id}
+                  deviationReason={deviation}
+                  label={opt.label}
+                  tone={opt.kind === "cardio" ? "heart" : "neutral"}
+                />
+              </StaggerItem>
             );
           })}
-        </div>
+        </Stagger>
       </Section>
 
       {/* ── Recent sessions list ──────────────────────────────────── */}
@@ -250,18 +284,18 @@ export default async function TrainingPage() {
           <EmptyStateCard cause="no_data" headline="Noch keine Trainings-Sessions" />
         ) : (
           <Card variant="soft">
-            <CardBody className="p-3">
-              <ul className="flex flex-col divide-y divide-[var(--color-border)]">
+            <CardBody className="p-2">
+              <Stagger className="flex flex-col divide-y divide-[var(--color-border)]">
                 {recentSessions.map((s) => (
-                  <li key={s.id}>
+                  <StaggerItem key={s.id}>
                     <Link
                       href={`/training/session/${s.id}`}
-                      className="flex items-center gap-3 px-3 h-12 rounded-xl hover:bg-[var(--color-surface-2)]/50 transition-colors"
+                      className="flex h-12 items-center gap-3 rounded-[var(--radius-chip)] px-3 transition-colors hover:bg-[var(--color-surface-2)]"
                     >
-                      <span className="num-mono text-caption w-[88px]">
+                      <span className="w-[88px] num-mono text-caption">
                         {fmtRecent(s.period_key)}
                       </span>
-                      <span className="flex-1 truncate text-[0.9375rem]">
+                      <span className="flex-1 truncate text-body">
                         {s.session_template_id ?? "Eigen"}
                       </span>
                       <Pill
@@ -282,9 +316,9 @@ export default async function TrainingPage() {
                       </Pill>
                       <Glyph name="ChevronRight" size={14} className="text-faint" />
                     </Link>
-                  </li>
+                  </StaggerItem>
                 ))}
-              </ul>
+              </Stagger>
             </CardBody>
           </Card>
         )}
@@ -295,16 +329,23 @@ export default async function TrainingPage() {
 
 function ColdStart() {
   return (
-    <Card>
-      <CardBody className="p-8 flex flex-col gap-3">
-        <Eyebrow>Training</Eyebrow>
-        <h1 className="text-hero">Noch kein Plan importiert.</h1>
-        <p className="text-body text-muted max-w-[60ch]">
-          Importiere die Seed-Plan-Datei via{" "}
-          <code className="font-mono text-caption">tsx runner/src/scripts/import-plan.ts</code>{" "}
-          (oder POST <code className="font-mono text-caption">/api/training/plan/import</code>).
-        </p>
-      </CardBody>
-    </Card>
+    <div className="flex flex-col gap-6">
+      <PageHeader eyebrow="Training" title="Training" />
+      <FadeRise>
+        <Card>
+          <CardBody className="flex flex-col gap-3 p-6">
+            <IconBadge icon="Dumbbell" tone="activity" variant="solid" size="lg" />
+            <h2 className="text-h2 text-[var(--color-text-strong)]">
+              Noch kein Plan importiert.
+            </h2>
+            <p className="max-w-[60ch] text-body text-muted">
+              Importiere die Seed-Plan-Datei via{" "}
+              <code className="font-mono text-caption">tsx runner/src/scripts/import-plan.ts</code>{" "}
+              (oder POST <code className="font-mono text-caption">/api/training/plan/import</code>).
+            </p>
+          </CardBody>
+        </Card>
+      </FadeRise>
+    </div>
   );
 }

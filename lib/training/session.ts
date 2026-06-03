@@ -255,6 +255,29 @@ export function updateSessionMeta(input: UpdateSessionMetaInput): SessionRow {
   return row;
 }
 
+/**
+ * Auto-close sessions left in `in_progress` past `maxAgeMs` — a user starts
+ * a session, never opens the app again, and the row sticks forever. Treated
+ * as `abandoned` with completed_at = started_at + maxAgeMs so it stops
+ * blocking "in_progress" UI affordances on the training page. Pi-only write.
+ * Returns the number of rows swept.
+ */
+export function sweepStaleSessions(maxAgeMs: number): number {
+  const db = getWritableDb();
+  const r = db
+    .prepare(
+      `UPDATE PULSE_ACTUAL_SESSION
+          SET state = 'abandoned',
+              completed_at = strftime('%Y-%m-%dT%H:%M:%fZ',
+                                      julianday(started_at) + (? / 86400000.0)),
+              last_edited_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE state = 'in_progress'
+          AND (strftime('%s', 'now') - strftime('%s', started_at)) * 1000 > ?`,
+    )
+    .run(maxAgeMs, maxAgeMs);
+  return r.changes;
+}
+
 export interface LinkWearableInput {
   id: string;
   wearable_workout_id: number | null;
