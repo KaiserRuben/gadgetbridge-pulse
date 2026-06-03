@@ -11,9 +11,12 @@
   --color-surface:       hsl(240 5% 9%);
   --color-surface-2:     hsl(240 5% 12%);
   --color-surface-3:     hsl(240 5% 15%);
+  --color-surface-soft:  hsl(240 5% 11%);
+  --color-surface-hover: hsl(240 5% 14%);
   --color-border:        hsl(240 4% 16%);
   --color-border-strong: hsl(240 4% 24%);
   --color-text:          hsl(0 0% 96%);
+  --color-text-strong:   hsl(0 0% 100%);
   --color-text-muted:    hsl(240 4% 64%);
   --color-text-subtle:   hsl(240 4% 48%);
   --color-text-faint:    hsl(240 4% 32%);
@@ -287,4 +290,43 @@
   .glow-body     { box-shadow: 0 0 60px -16px hsl(20 74% 62% / 0.30);  }
   .glow-stress   { box-shadow: 0 0 60px -16px hsl(28 78% 58% / 0.30);  }
   .glow-nutrition{ box-shadow: 0 0 60px -16px hsl(346 48% 62% / 0.30); }
+}
+
+/* liveness keyframes — used by the day timeline "now" marker + live hr_now */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1);    }
+  20%      { transform: scale(1.16); }
+  40%      { transform: scale(1);    }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50%      { opacity: 0.9;  transform: scale(1.04); }
+}
+
+@layer utilities {
+  /* continuous, calm — gated under reduced-motion below */
+  .animate-heartbeat { animation: heartbeat 1.4s var(--ease-in-out) infinite; }
+  .animate-breathe   { animation: breathe   4s   var(--ease-in-out) infinite; }
+
+  /* the "now" dot on the timeline: a soft expanding ring (reuses ringPulse) */
+  .now-dot {
+    position: relative;
+    box-shadow: 0 0 0 0 hsl(252 70% 66% / 0.55);
+    animation: ringPulse 2.4s var(--ease-out) infinite;
+  }
+
+  /* dock + safe-area reserve so the floating mobile nav never occludes
+     content. The bottom dock is mobile-only (lg:hidden), so desktop drops
+     back to a normal page gutter. Single source of truth — pages must NOT
+     add their own bottom padding. */
+  .pb-dock { padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)); }
+  @media (min-width: 1024px) { .pb-dock { padding-bottom: 3rem; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring-pulse,
+    .now-dot,
+    .animate-heartbeat,
+    .animate-breathe,
+    .skeleton { animation: none !important; }
+  }
 }

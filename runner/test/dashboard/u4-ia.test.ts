@@ -32,14 +32,15 @@ function findItem(
 
 describe("Phase U4: desktop sidebar", () => {
   it("exposes every fast-access surface", () => {
-    // OQ-3 + fast-access requirement: Coach, Schlaf, Training, Ernährung
-    // must all be reachable from the sidebar.
+    // Fast-access requirement: Home, Coach, Training, Ernährung, Woche
+    // must all be reachable from the sidebar's top section.
     const all = allItems(NAV_DESKTOP_SECTIONS);
     const labels = all.map((i) => i.label);
+    expect(labels).toContain("Home");
     expect(labels).toContain("Coach");
-    expect(labels).toContain("Schlaf");
     expect(labels).toContain("Training");
     expect(labels).toContain("Ernährung");
+    expect(labels).toContain("Woche");
   });
 
   it("places fast-access surfaces in the top (label=null) section", () => {
@@ -49,9 +50,9 @@ describe("Phase U4: desktop sidebar", () => {
     expect(order).toEqual([
       "Home",
       "Coach",
-      "Schlaf",
       "Training",
       "Ernährung",
+      "Woche",
     ]);
   });
 
@@ -61,17 +62,17 @@ describe("Phase U4: desktop sidebar", () => {
     expect(coach?.label).toBe("Coach");
   });
 
-  it("groups secondary surfaces under a single 'Weitere' section", () => {
-    // UI rework: collapsed Domänen + Werkzeuge + Einstellungen into one
-    // flat secondary block. Domain pages also reachable from home KPI
-    // tiles; admin pages (Profil/Settings/Labs) live in topbar gear icon.
+  it("groups secondary surfaces under 'Weitere' + a temporary 'Legacy' block", () => {
+    // UI rework: collapsed Domänen + Werkzeuge into a flat 'Weitere' block;
+    // the per-domain v3 pages stay reachable under 'Legacy' while the v4
+    // slots stabilise (dropped once Phase 4 lands).
     const labels = NAV_DESKTOP_SECTIONS.map((s) => s.label);
-    expect(labels).toEqual([null, "Weitere"]);
+    expect(labels).toEqual([null, "Weitere", "Legacy"]);
   });
 
-  it("keeps Bewegung pointing at /activity in the secondary block", () => {
-    const weitere = NAV_DESKTOP_SECTIONS.find((s) => s.label === "Weitere");
-    const bewegung = weitere!.items.find((i) => i.label === "Bewegung");
+  it("keeps Bewegung (v3) pointing at /activity in the Legacy block", () => {
+    const legacy = NAV_DESKTOP_SECTIONS.find((s) => s.label === "Legacy");
+    const bewegung = legacy!.items.find((i) => i.label === "Bewegung (v3)");
     expect(bewegung?.href).toBe("/activity");
   });
 
@@ -105,10 +106,10 @@ describe("Phase U4: mobile bottom-nav", () => {
     const labels = NAV_PRIMARY_MOBILE.map((i) => i.label);
     expect(labels).toEqual([
       "Home",
-      "Schlaf",
       "Training",
       "Coach",
       "Ernährung",
+      "Woche",
     ]);
   });
 

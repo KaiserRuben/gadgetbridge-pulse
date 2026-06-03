@@ -3,23 +3,6 @@
  * Color values mirror tokens in app/globals.css (hard-coded so charts can use them).
  */
 
-export const DOMAIN_COLORS = {
-  sleep: "hsl(252 80% 66%)",
-  sleep2: "hsl(280 80% 66%)",
-  activity: "hsl(150 70% 52%)",
-  activity2: "hsl(80 70% 55%)",
-  heart: "hsl(348 90% 60%)",
-  heart2: "hsl(0 84% 60%)",
-  stress: "hsl(28 92% 58%)",
-  stress2: "hsl(45 92% 60%)",
-  spo2: "hsl(195 80% 60%)",
-  temp: "hsl(20 90% 64%)",
-  hrv: "hsl(170 70% 55%)",
-  border: "hsl(240 4% 18%)",
-  text: "hsl(0 0% 96%)",
-  muted: "hsl(240 4% 66%)",
-} as const;
-
 /** Huawei sleep stage codes (verified against source). */
 export const SLEEP_STAGE = {
   1: { label: "Light", color: "hsl(220 65% 60%)" },
@@ -116,17 +99,14 @@ export const NAV_PRIMARY_MOBILE: readonly NavItem[] = [
  * weekly overview, secondary domains, tools, and admin pages.
  */
 export const NAV_SHEET_MOBILE: readonly NavItem[] = [
-  { href: "/activities", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
+  { href: "/workouts", label: "Workouts", icon: "GitMerge", match: "^/(activities|workouts)(/|$)" },
   { href: "/explore", label: "Explore", icon: "BarChart2", match: "^/explore(/|$)" },
   { href: "/alarms", label: "Alarme", icon: "Bell", match: "^/alarms(/|$)" },
   { href: "/log", label: "Log", icon: "PenLine", match: "^/log(/|$)" },
   { href: "/profile", label: "Profil", icon: "User", match: "^/profile(/|$)" },
   { href: "/settings", label: "Einstellungen", icon: "Settings", match: "^/settings(/|$)" },
-  { href: "/labs", label: "Labs", icon: "FlaskConical", match: "^/labs(/|$)" },
   // Legacy per-domain pages (kept reachable while v4 slots stabilise).
-  { href: "/", label: "Legacy Home", icon: "History", match: "^/$" },
   { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
-  { href: "/recovery", label: "Erholung (v3)", icon: "HeartPulse", match: "^/recovery(/|$)" },
   { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
   { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
   { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
@@ -169,25 +149,13 @@ export const NAV_DESKTOP_SECTIONS: readonly NavSection[] = [
     // reachable while v4 stabilises. Drop this section once Phase 4 lands.
     label: "Legacy",
     items: [
-      { href: "/", label: "Legacy Home", icon: "History", match: "^/$" },
       { href: "/sleep", label: "Schlaf (v3)", icon: "Moon", match: "^/sleep(/|$)" },
-      { href: "/recovery", label: "Erholung (v3)", icon: "HeartPulse", match: "^/recovery(/|$)" },
       { href: "/activity", label: "Bewegung (v3)", icon: "Footprints", match: "^/activity(/|$)" },
       { href: "/heart", label: "Herz (v3)", icon: "HeartPulse", match: "^/heart(/|$)" },
       { href: "/body", label: "Körper (v3)", icon: "Thermometer", match: "^/body(/|$)" },
       { href: "/stress", label: "Stress (v3)", icon: "Waves", match: "^/stress(/|$)" },
     ],
   },
-] as const;
-
-/**
- * Flat list of every nav target across both surfaces. Used by
- * `<PageTransition>` to compute slide direction without having to enumerate
- * each section.
- */
-export const NAV_FLAT: readonly NavItem[] = [
-  ...NAV_PRIMARY_MOBILE,
-  ...NAV_SHEET_MOBILE,
 ] as const;
 
 export const TIMEZONE = "Europe/Berlin";
