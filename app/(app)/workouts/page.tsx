@@ -5,14 +5,16 @@ import { unstable_noStore as noStore } from "next/cache";
 import { getWorkouts, workoutTypeIcon, type WorkoutSummary } from "@/lib/queries/workouts";
 import { fmtInt } from "@/lib/format";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyStateCard } from "@/components/ui/empty-state";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { Glyph, type GlyphName } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { type GlyphName } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { NumberTicker } from "@/components/motion/number-ticker";
 
 export default async function WorkoutsPage() {
   noStore();
@@ -20,12 +22,17 @@ export default async function WorkoutsPage() {
   const grouped = groupByMonth(workouts);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <FadeRise>
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Trainings · {workouts.length} gesamt</Eyebrow>
-          <h1 className="text-hero">Workouts</h1>
-        </div>
+        <PageHeader
+          eyebrow="Trainings"
+          title="Workouts"
+          sub={
+            <span className="num-mono">
+              <NumberTicker value={workouts.length} /> gesamt
+            </span>
+          }
+        />
       </FadeRise>
 
       {workouts.length === 0 && (
@@ -40,12 +47,14 @@ export default async function WorkoutsPage() {
                 <Link href={`/workouts/${w.id}`} className="block">
                   <Card hoverable className="group">
                     <CardBody className="p-5 flex items-start gap-4">
-                      <span className="grid place-items-center size-12 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-activity)] shrink-0">
-                        <Glyph name={workoutTypeIcon(w.type) as GlyphName} size={20} />
-                      </span>
+                      <IconBadge
+                        icon={workoutTypeIcon(w.type) as GlyphName}
+                        tone="activity"
+                        size="lg"
+                      />
                       <div className="flex flex-col gap-2 min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-[1.0625rem] font-medium">{w.typeLabel}</span>
+                          <span className="text-title">{w.typeLabel}</span>
                           <span className="num-mono text-caption">{fmtDt(w.startTs)}</span>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap text-caption">

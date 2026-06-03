@@ -1,5 +1,4 @@
 import "server-only";
-import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 
@@ -10,13 +9,15 @@ import {
 import { loadGpx, type GpxTrack } from "@/lib/queries/gpx";
 import { fmtInt } from "@/lib/format";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Pill } from "@/components/ui/pill";
 import { Glyph, type GlyphName } from "@/components/ui/glyph";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import { Timeline, type TimelinePoint } from "@/components/charts/timeline";
 import { GpsMap } from "@/components/charts/gps-map";
 
@@ -58,26 +59,27 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     .map((p) => ({ ts: p.ts * 1000, v: p.altitude! }));
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <Link href="/workouts" className="flex items-center gap-1 text-caption text-muted hover:text-[var(--color-text)]">
-          <Glyph name="ChevronRight" size={14} className="rotate-180" />
-          Workouts
-        </Link>
-        <span className="num-mono text-caption">#{w.id}</span>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        back={{ href: "/workouts", label: "Workouts" }}
+        eyebrow={fmtDt(w.startTs)}
+        title={w.typeLabel}
+        trailing={<span className="num-mono text-caption">#{w.id}</span>}
+      />
 
       <FadeRise>
         <Card glow="activity">
           <CardBody className="p-5 lg:p-6 flex flex-col gap-5">
             <div className="flex items-start gap-4">
-              <span className="grid place-items-center size-14 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-activity)] shrink-0">
-                <Glyph name={workoutTypeIcon(w.type) as GlyphName} size={24} />
-              </span>
+              <IconBadge
+                icon={workoutTypeIcon(w.type) as GlyphName}
+                tone="activity"
+                size="lg"
+                variant="solid"
+              />
               <div className="flex flex-col gap-1.5 min-w-0">
-                <Eyebrow>{fmtDt(w.startTs)}</Eyebrow>
-                <h1 className="text-hero">{w.typeLabel}</h1>
-                <div className="flex items-center gap-2 flex-wrap text-caption">
+                <span className="text-title">{w.typeLabel}</span>
+                <div className="flex items-center gap-2 flex-wrap text-caption text-muted">
                   <span className="num-mono">{fmtDuration(w.durationSec)}</span>
                   <span className="text-faint">·</span>
                   <span className="num-mono">{(w.distanceM / 1000).toFixed(2)} km</span>
@@ -91,8 +93,8 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-[var(--color-border)]">
-              <Stat label="Kalorien"   value={fmtInt(w.calories)} unit="kcal" />
-              <Stat label="Schritte"   value={fmtInt(w.steps)} />
+              <Stat label="Kalorien"   value={<NumberTicker value={w.calories} />} unit="kcal" />
+              <Stat label="Schritte"   value={<NumberTicker value={w.steps} />} />
               <Stat label="HR ⌀"       value={avgHr ?? "—"} unit="bpm" />
               <Stat label="HR max"     value={w.hrMax ?? "—"} unit="bpm" />
             </div>
@@ -165,7 +167,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                   Gadgetbridge hat eine GPX-Datei aufgezeichnet, die noch nicht zum Server synchronisiert ist.
                 </span>
               </div>
-              <code className="text-[0.8125rem] num-mono text-subtle truncate">{w.gpxPath}</code>
+              <code className="text-body-sm num-mono text-subtle truncate">{w.gpxPath}</code>
               <span className="text-caption text-subtle">
                 Zum Anzeigen: Gadgetbridge-Verzeichnis via Syncthing nach <code className="num-mono">$PULSE_ROOT/gpx/</code> spiegeln.
               </span>
@@ -183,9 +185,9 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 const pct = (sec / total) * 100;
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="w-[110px] text-[0.875rem]">{RUN_PACE_LABELS[i]}</span>
-                    <div className="flex-1 h-2 rounded-full overflow-hidden bg-[var(--color-bg-elevated)]">
-                      <div className="h-full rounded-full" style={{
+                    <span className="w-[110px] text-body-sm">{RUN_PACE_LABELS[i]}</span>
+                    <div className="flex-1 h-2 rounded-[var(--radius-pill)] overflow-hidden bg-[var(--color-bg-elevated)]">
+                      <div className="h-full rounded-[var(--radius-pill)]" style={{
                         width: `${pct}%`,
                         background: paceZoneColor(i),
                       }} />
@@ -204,7 +206,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
         <Section eyebrow="Sektionen" title={`${sections.length} Abschnitte`}>
           <Card>
             <CardBody className="p-5">
-              <table className="w-full text-[0.875rem]">
+              <table className="w-full text-body-sm">
                 <thead>
                   <tr className="text-caption text-subtle border-b border-[var(--color-border)]">
                     <th className="text-left py-2">Nr.</th>
@@ -217,7 +219,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 </thead>
                 <tbody>
                   {sections.map((s) => (
-                    <tr key={s.num} className="border-b border-[var(--color-border)] last:border-0">
+                    <tr key={s.num} className="border-b border-[var(--color-border)] last:border-0 transition-colors hover:bg-[var(--color-surface-2)]">
                       <td className="py-2 num-mono">{s.num}</td>
                       <td className="py-2 num-mono text-right">{fmtDuration(s.timeSec)}</td>
                       <td className="py-2 num-mono text-right">{(s.distanceM / 1000).toFixed(2)} km</td>
@@ -238,7 +240,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <Card variant="soft">
             <CardBody className="p-5 flex items-center gap-3">
               <Glyph name="Repeat" size={16} className="text-[var(--color-activity)]" />
-              <span className="text-[0.9375rem]">
+              <span className="text-body">
                 Vollständige Erholung in <Pill tone="activity" size="sm" className="num-mono">{w.recoveryHours} h</Pill>
                 <span className="text-subtle"> — entspannt bis </span>
                 <span className="num-mono">
@@ -277,9 +279,9 @@ function fmtPace(secPerKm: number): string {
 }
 
 function paceZoneColor(zone: number): string {
-  return zone === 0 ? "hsl(195 80% 60%)"
-       : zone === 1 ? "hsl(150 70% 52%)"
-       : zone === 2 ? "hsl(45 92% 60%)"
-       : zone === 3 ? "hsl(28 92% 58%)"
-       : "hsl(348 90% 60%)";
+  return zone === 0 ? "var(--color-band-up)"
+       : zone === 1 ? "var(--color-activity)"
+       : zone === 2 ? "var(--color-stress-2)"
+       : zone === 3 ? "var(--color-stress)"
+       : "var(--color-heart)";
 }
