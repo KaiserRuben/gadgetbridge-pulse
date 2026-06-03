@@ -1,13 +1,14 @@
 import "server-only";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
-import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import { MealActions } from "@/components/nutrition/MealActions";
 import { MealReviewForm } from "@/components/nutrition/MealReviewForm";
 import { MealHeroPhoto } from "@/components/nutrition/MealHeroPhoto";
@@ -25,24 +26,13 @@ export default async function MealDetailPage({
   if (!meal) notFound();
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex flex-col gap-0.5">
-          <Eyebrow>Mahlzeit</Eyebrow>
-          <h1 className="text-hero">{kindLabel(meal.kind)}</h1>
-          <span className="text-caption text-subtle num-mono">
-            {fmtDateTime(meal.user_meal_at)}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/nutrition/${meal.period_key}`}
-            className="text-caption hover:text-[var(--color-text)] transition-colors"
-          >
-            ← Tag
-          </Link>
-        </div>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Mahlzeit"
+        title={kindLabel(meal.kind)}
+        sub={<span className="num-mono text-subtle">{fmtDateTime(meal.user_meal_at)}</span>}
+        back={{ href: `/nutrition/${meal.period_key}`, label: "Tag" }}
+      />
 
       <FadeRise>
         <Card glow="nutrition" className="overflow-hidden">
@@ -100,9 +90,10 @@ export default async function MealDetailPage({
               {meal.status !== "pending" ? (
                 <div className="flex items-baseline gap-3 num-mono text-caption text-white/90">
                   <span>
-                    <span className="num text-[1.5rem] font-semibold text-white">
-                      {Math.round(meal.totals.kcal)}
-                    </span>{" "}
+                    <NumberTicker
+                      value={Math.round(meal.totals.kcal)}
+                      className="num text-[1.5rem] font-semibold text-white"
+                    />{" "}
                     kcal
                   </span>
                   <span>{Math.round(meal.totals.protein_g)} P</span>
@@ -139,25 +130,27 @@ export default async function MealDetailPage({
             </CardBody>
           </Card>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <Stagger className="flex flex-col gap-2" step={0.04}>
             {meal.revisions.map((r) => (
-              <li key={r.id}>
+              <StaggerItem key={r.id}>
                 <Card variant="flat">
                   <CardBody className="p-3 flex items-center gap-3">
-                    <span className="grid place-items-center size-8 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-subtle shrink-0">
-                      <Glyph name={r.by === "vlm" ? "Sparkles" : "PenLine"} size={14} />
-                    </span>
+                    <IconBadge
+                      icon={r.by === "vlm" ? "Sparkles" : "PenLine"}
+                      tone="neutral"
+                      size="sm"
+                    />
                     <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                      <span className="text-[0.8125rem]">{r.diff_summary}</span>
+                      <span className="text-body-sm">{r.diff_summary}</span>
                       <span className="num-mono text-caption text-subtle">
                         {fmtDateTime(r.created_at)} · {r.by === "vlm" ? "VLM-Reklassifizierung" : "Benutzer"}
                       </span>
                     </div>
                   </CardBody>
                 </Card>
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         )}
       </Section>
 

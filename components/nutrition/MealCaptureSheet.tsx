@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { Glyph } from "@/components/ui/glyph";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { cn } from "@/lib/cn";
 
 export type PhotoKind = "meal" | "label" | "context";
@@ -124,9 +125,7 @@ export function MealCaptureSheet({
           >
             <header className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="grid place-items-center size-8 rounded-xl bg-[hsl(346_40%_18%)] border border-[hsl(346_36%_28%)] text-[var(--color-nutrition)]">
-                  <Glyph name="Camera" size={14} />
-                </span>
+                <IconBadge icon="Camera" tone="nutrition" size="sm" />
                 <div className="flex flex-col">
                   <Eyebrow>Mahlzeit</Eyebrow>
                   <span className="text-title">Foto, Text oder beides</span>
@@ -363,7 +362,7 @@ export function CaptureBody({
             "relative cursor-pointer rounded-[var(--radius-card)] border-2 border-dashed transition-colors overflow-hidden",
             large ? "min-h-[260px]" : "min-h-[180px]",
             dragging
-              ? "border-[var(--color-nutrition)] bg-[hsl(346_40%_18%)]/40"
+              ? "border-[var(--color-nutrition)] bg-[color-mix(in_srgb,var(--color-nutrition)_14%,transparent)]"
               : "border-[var(--color-border-strong)] hover:border-[var(--color-nutrition)]/40 bg-[var(--color-bg-elevated)]/40",
           )}
         >
@@ -436,7 +435,7 @@ export function CaptureBody({
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={busy}
-                className="aspect-square rounded-[var(--radius-card)] border-2 border-dashed border-[var(--color-border-strong)] hover:border-[var(--color-nutrition)]/60 grid place-items-center text-[var(--color-nutrition)] hover:bg-[hsl(346_40%_18%)]/30 transition-colors disabled:opacity-40"
+                className="aspect-square rounded-[var(--radius-card)] border-2 border-dashed border-[var(--color-border-strong)] hover:border-[var(--color-nutrition)]/60 grid place-items-center text-[var(--color-nutrition)] hover:bg-[color-mix(in_srgb,var(--color-nutrition)_10%,transparent)] transition-colors disabled:opacity-40"
               >
                 <div className="flex flex-col items-center gap-1">
                   <Glyph name="ImagePlus" size={20} />
@@ -488,7 +487,7 @@ export function CaptureBody({
         <div className="mr-auto flex flex-col gap-1">
           {status !== "idle" && <StatusPill status={status} hasFile={photos.length > 0} />}
           {errorMsg && status === "failed" && (
-            <span className="text-caption text-[var(--color-warn,#b76e00)] max-w-[40ch]">
+            <span className="text-caption text-[var(--color-band-down)] max-w-[40ch]">
               {errorMsg}
             </span>
           )}

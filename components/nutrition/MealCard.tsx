@@ -87,8 +87,8 @@ function MealRow({ meal, className }: { meal: Meal; className?: string }) {
     <Link href={`/nutrition/meal/${meal.id}`} className={cn("block group", className)}>
       <Card hoverable>
         <div className="flex items-stretch gap-3 p-3">
-          <div className="size-16 shrink-0 rounded-xl overflow-hidden relative">
-            <MealPhoto meal={meal} ratio="absolute inset-0" rounded="rounded-xl" />
+          <div className="size-16 shrink-0 rounded-[var(--radius-chip)] overflow-hidden relative">
+            <MealPhoto meal={meal} ratio="absolute inset-0" rounded="rounded-[var(--radius-chip)]" />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-0 justify-center">
             <div className="flex items-baseline justify-between gap-2">
@@ -199,7 +199,7 @@ function MealPhoto({
         )}
         style={{
           background:
-            "radial-gradient(ellipse 100% 100% at 30% 20%, hsl(346 36% 24% / 0.6), hsl(36 36% 16% / 0.5))",
+            "radial-gradient(ellipse 100% 100% at 30% 20%, color-mix(in srgb, var(--color-nutrition) 40%, var(--color-bg)), color-mix(in srgb, var(--color-nutrition-2) 24%, var(--color-bg)))",
         }}
       >
         <Glyph

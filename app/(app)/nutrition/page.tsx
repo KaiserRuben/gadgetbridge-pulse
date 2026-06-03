@@ -8,9 +8,11 @@ export const dynamic = "force-dynamic";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { IntakeRing } from "@/components/nutrition/IntakeRing";
@@ -62,24 +64,22 @@ export default function NutritionIndexPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Ernährung</Eyebrow>
-          <h1 className="text-hero">Was du heute gegessen hast</h1>
-          <p className="text-body-sm text-muted max-w-[52ch]">
-            Foto rein, Komponenten draußen. Nichts wird automatisch geglaubt — jede Mahlzeit
-            ist ein Entwurf, bis du sie kurz prüfst.
-          </p>
-        </div>
-        <Link
-          href="/nutrition/log"
-          className="self-start inline-flex items-center gap-2 px-4 h-11 rounded-[var(--radius-pill)] bg-[var(--color-nutrition)] text-[var(--color-bg)] font-medium hover:brightness-110 transition shadow-[0_8px_28px_-8px_hsl(346_48%_62%/0.55)]"
-        >
-          <Glyph name="Camera" size={16} />
-          Mahlzeit erfassen
-        </Link>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Ernährung"
+        title="Was du heute gegessen hast"
+        sub="Foto rein, Komponenten draußen. Nichts wird automatisch geglaubt — jede Mahlzeit ist ein Entwurf, bis du sie kurz prüfst."
+        trailing={
+          <Link
+            href="/nutrition/log"
+            className="inline-flex items-center gap-2 px-4 h-11 rounded-[var(--radius-pill)] bg-[var(--color-nutrition)] text-[var(--color-bg)] font-medium transition-[filter] hover:brightness-110"
+            style={{ boxShadow: "var(--shadow-pop)" }}
+          >
+            <Glyph name="Camera" size={16} />
+            Mahlzeit erfassen
+          </Link>
+        }
+      />
 
       <FadeRise>
         <Card glow="nutrition">
@@ -204,7 +204,11 @@ export default function NutritionIndexPage() {
 
       <Section
         eyebrow="Letzte Mahlzeiten"
-        title={`${recent.length} aufgenommen`}
+        title={
+          todayMeals.length === recent.length
+            ? `${recent.length} heute`
+            : `${recent.length} der letzten 14 Tage`
+        }
         trailing={
           <Link
             href="/nutrition/log"
@@ -217,9 +221,7 @@ export default function NutritionIndexPage() {
         {recent.length === 0 ? (
           <Card variant="soft">
             <CardBody className="p-8 grid place-items-center gap-3 text-center">
-              <span className="grid place-items-center size-12 rounded-2xl bg-[hsl(346_40%_18%)] border border-[hsl(346_36%_28%)] text-[var(--color-nutrition)]">
-                <Glyph name="ImagePlus" size={20} />
-              </span>
+              <IconBadge icon="ImagePlus" tone="nutrition" size="lg" variant="solid" />
               <div className="flex flex-col gap-1 max-w-[40ch]">
                 <span className="text-title">Noch keine Mahlzeit erfasst</span>
                 <span className="text-caption text-muted">

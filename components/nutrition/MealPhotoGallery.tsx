@@ -63,7 +63,7 @@ export function MealPhotoGallery({
         className="absolute inset-0 grid place-items-center"
         style={{
           background:
-            "radial-gradient(ellipse 100% 100% at 30% 20%, hsl(346 36% 24% / 0.6), hsl(36 36% 16% / 0.5))",
+            "radial-gradient(ellipse 100% 100% at 30% 20%, color-mix(in srgb, var(--color-nutrition) 40%, var(--color-bg)), color-mix(in srgb, var(--color-nutrition-2) 24%, var(--color-bg)))",
         }}
       >
         <Glyph
@@ -85,7 +85,7 @@ export function MealPhotoGallery({
           className="absolute inset-0 grid place-items-center"
           style={{
             background:
-              "radial-gradient(ellipse 100% 100% at 30% 20%, hsl(346 36% 24% / 0.6), hsl(36 36% 16% / 0.5))",
+              "radial-gradient(ellipse 100% 100% at 30% 20%, color-mix(in srgb, var(--color-nutrition) 40%, var(--color-bg)), color-mix(in srgb, var(--color-nutrition-2) 24%, var(--color-bg)))",
           }}
         >
           <Glyph

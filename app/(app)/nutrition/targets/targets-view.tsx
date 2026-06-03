@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { PageHeader } from "@/components/ui/page-header";
 import { Glyph } from "@/components/ui/glyph";
 import { Pill } from "@/components/ui/pill";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { NutrientTargetEditor } from "@/components/nutrition/NutrientTargetEditor";
 import type { NutritionTargets } from "@/lib/nutrition/types";
 
@@ -92,41 +94,43 @@ export default function TargetsView({
   }
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Ernährung</Eyebrow>
-          <h1 className="text-hero">Deine Ziele</h1>
-          <p className="text-body-sm text-muted max-w-[60ch]">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Ernährung"
+        title="Deine Ziele"
+        sub={
+          <>
             Generisches RDA als Standard. Wo eine Formel hinterlegt ist
             <code className="num-mono text-[0.75rem] mx-1">auto_from</code>
             berechnet der Coach den Bedarf aus deinem Zustand. Override für jeden Wert
             möglich, hat Vorrang.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={resetAllTargets}
-          disabled={clearing}
-          className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface)] text-caption hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Glyph
-            name="RotateCcw"
-            size={14}
-            className={clearing ? "animate-spin" : undefined}
-          />
-          Alle Standards
-        </button>
-      </header>
+          </>
+        }
+        trailing={
+          <button
+            type="button"
+            onClick={resetAllTargets}
+            disabled={clearing}
+            className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)] border border-[var(--color-border)] bg-[var(--color-surface)] text-caption hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Glyph
+              name="RotateCcw"
+              size={14}
+              className={clearing ? "animate-spin" : undefined}
+            />
+            Alle Standards
+          </button>
+        }
+      />
 
       <Section eyebrow="Makros" title={`${macros.length} Werte`}>
-        <ul className="flex flex-col gap-2">
+        <Stagger className="flex flex-col gap-2" step={0.03}>
           {macros.map((r) => (
-            <li key={`${r.key}-${resetCounter}`}>
+            <StaggerItem key={`${r.key}-${resetCounter}`}>
               <NutrientTargetEditor initial={r} />
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       </Section>
 
       <Section
@@ -136,24 +140,22 @@ export default function TargetsView({
           <span className="text-caption text-subtle">RDA m = männlich · Erwachsener</span>
         }
       >
-        <ul className="flex flex-col gap-2">
+        <Stagger className="flex flex-col gap-2" step={0.02}>
           {micros.map((r) => (
-            <li key={`${r.key}-${resetCounter}`}>
+            <StaggerItem key={`${r.key}-${resetCounter}`}>
               <NutrientTargetEditor initial={r} />
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       </Section>
 
       <Section eyebrow="Hinweise" title="Wie der Coach Ziele liest">
         <Card variant="soft">
           <CardBody className="p-5 flex flex-col gap-3">
             <div className="flex items-start gap-3">
-              <span className="grid place-items-center size-8 rounded-xl bg-[hsl(346_40%_18%)] border border-[hsl(346_36%_28%)] text-[var(--color-nutrition)] shrink-0">
-                <Glyph name="Target" size={14} />
-              </span>
+              <IconBadge icon="Target" tone="nutrition" size="sm" />
               <div className="flex flex-col gap-1">
-                <span className="text-[0.875rem] font-medium">Override hat Vorrang</span>
+                <span className="text-body-sm font-medium">Override hat Vorrang</span>
                 <span className="text-caption text-muted max-w-[60ch]">
                   Setzt du explizit einen Wert (z. B. 140 g Eiweiß), nutzt der Coach diesen
                   und ignoriert die Formel. Leeres Feld = Formel oder Standard.
@@ -161,11 +163,9 @@ export default function TargetsView({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="grid place-items-center size-8 rounded-xl bg-[hsl(150_50%_15%)] border border-[hsl(150_46%_24%)] text-[var(--color-activity)] shrink-0">
-                <Glyph name="Activity" size={14} />
-              </span>
+              <IconBadge icon="Activity" tone="activity" size="sm" />
               <div className="flex flex-col gap-1">
-                <span className="text-[0.875rem] font-medium">Formeln referenzieren deinen Zustand</span>
+                <span className="text-body-sm font-medium">Formeln referenzieren deinen Zustand</span>
                 <span className="text-caption text-muted max-w-[60ch]">
                   z. B. <code className="num-mono">1.6 * weight_kg</code> – Ziel passt sich
                   Gewichtsänderungen an. Trainings-Tage erhöhen den Kalorienbedarf via
@@ -174,11 +174,9 @@ export default function TargetsView({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="grid place-items-center size-8 rounded-xl bg-[hsl(220_18%_18%)] border border-[var(--color-border)] text-[var(--color-band-steady)] shrink-0">
-                <Glyph name="AlertTriangle" size={14} />
-              </span>
+              <IconBadge icon="AlertTriangle" tone="neutral" size="sm" />
               <div className="flex flex-col gap-1">
-                <span className="text-[0.875rem] font-medium">Coach gibt keine klinischen Empfehlungen</span>
+                <span className="text-body-sm font-medium">Coach gibt keine klinischen Empfehlungen</span>
                 <span className="text-caption text-muted max-w-[60ch]">
                   Defizite werden als Muster über mehrere Tage gemeldet — nie als "du brauchst".
                   Einzeltag-Abweichung allein triggert keinen Hinweis.
@@ -198,7 +196,7 @@ export default function TargetsView({
           <CardBody className="p-5 flex flex-col gap-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex flex-col gap-1 max-w-[50ch]">
-                <span className="text-[0.875rem] font-medium text-[var(--color-text)]">
+                <span className="text-body-sm font-medium text-[var(--color-text)]">
                   Food-DB-Cache leeren
                 </span>
                 <span className="text-caption text-muted">

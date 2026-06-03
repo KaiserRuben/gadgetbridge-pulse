@@ -165,7 +165,7 @@ export function MealActions({
             className={cn(
               "inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-chip)]",
               "text-caption text-[var(--color-tier-s1)]",
-              "hover:bg-[hsl(4_40%_18%)]/60 transition-colors",
+              "hover:bg-[color-mix(in_srgb,var(--color-tier-s1)_14%,transparent)] transition-colors",
               "disabled:opacity-40 disabled:cursor-not-allowed",
             )}
           >

@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
-
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { FadeRise } from "@/components/motion/fade-rise";
+import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { CaptureBody } from "@/components/nutrition/MealCaptureSheet";
 
 /**
@@ -21,23 +21,13 @@ import { CaptureBody } from "@/components/nutrition/MealCaptureSheet";
  */
 export default function NutritionLogPage() {
   return (
-    <div className="flex flex-col gap-6 md:gap-8 max-w-[800px] mx-auto w-full">
-      <header className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Mahlzeit erfassen</Eyebrow>
-          <h1 className="text-hero">Foto oder Text. Beides geht auch.</h1>
-          <p className="text-body-sm text-muted max-w-[60ch]">
-            Der Klassifizierer läuft asynchron auf dem Mac. Du kannst nach dem Upload
-            sofort weiterarbeiten — Komponenten erscheinen, sobald sie fertig sind.
-          </p>
-        </div>
-        <Link
-          href="/nutrition"
-          className="text-caption hover:text-[var(--color-text)] transition-colors"
-        >
-          ← Übersicht
-        </Link>
-      </header>
+    <div className="flex flex-col gap-6 max-w-[800px] mx-auto w-full">
+      <PageHeader
+        eyebrow="Mahlzeit erfassen"
+        title="Foto oder Text. Beides geht auch."
+        sub="Der Klassifizierer läuft asynchron auf dem Mac. Du kannst nach dem Upload sofort weiterarbeiten — Komponenten erscheinen, sobald sie fertig sind."
+        back={{ href: "/nutrition", label: "Übersicht" }}
+      />
 
       <FadeRise>
         <Card glow="nutrition">
@@ -48,7 +38,7 @@ export default function NutritionLogPage() {
       </FadeRise>
 
       <Section eyebrow="So funktioniert es" title="Drei Schritte">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-3" step={0.05}>
           <Step
             n="1"
             icon="Camera"
@@ -67,7 +57,7 @@ export default function NutritionLogPage() {
             title="Prüfen"
             body="Mahlzeit ist Entwurf bis du sie aufmachst. Korrekturen werden als Revisionen protokolliert."
           />
-        </div>
+        </Stagger>
       </Section>
 
       <Section eyebrow="Tipps" title="Wenn die Schätzung daneben liegt">
@@ -119,9 +109,7 @@ export default function NutritionLogPage() {
       <Section eyebrow="Datenschutz" title="Wo das Foto bleibt">
         <Card variant="soft">
           <CardBody className="p-4 flex items-start gap-3">
-            <span className="grid place-items-center size-8 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-spo2)] shrink-0">
-              <Glyph name="Compass" size={14} />
-            </span>
+            <IconBadge icon="Compass" tone="neutral" size="sm" />
             <p className="text-caption text-muted">
               Foto landet im lokalen Syncthing-Share zwischen Pi und Mac. Keine Cloud, keine
               Drittanbieter. Pro Mahlzeit kannst du das Foto explizit löschen — Komponenten
@@ -146,16 +134,18 @@ function Step({
   body: string;
 }) {
   return (
-    <Card variant="flat">
-      <CardBody className="p-4 flex flex-col gap-2 h-full">
-        <div className="flex items-center justify-between">
-          <span className="num-mono text-caption text-subtle">{n}</span>
-          <Glyph name={icon} size={16} className="text-[var(--color-nutrition)]" />
-        </div>
-        <span className="text-title">{title}</span>
-        <span className="text-caption text-muted">{body}</span>
-      </CardBody>
-    </Card>
+    <StaggerItem className="h-full">
+      <Card variant="flat" hoverable className="h-full">
+        <CardBody className="p-4 flex flex-col gap-2 h-full">
+          <div className="flex items-center justify-between">
+            <span className="num-mono text-caption text-subtle">{n}</span>
+            <Glyph name={icon} size={16} className="text-[var(--color-nutrition)]" />
+          </div>
+          <span className="text-title">{title}</span>
+          <span className="text-caption text-muted">{body}</span>
+        </CardBody>
+      </Card>
+    </StaggerItem>
   );
 }
 

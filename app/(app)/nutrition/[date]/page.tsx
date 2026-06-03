@@ -5,11 +5,14 @@ export const dynamic = "force-dynamic";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Pill } from "@/components/ui/pill";
 import { Glyph } from "@/components/ui/glyph";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
+import { NumberTicker } from "@/components/motion/number-ticker";
 import { IntakeRing } from "@/components/nutrition/IntakeRing";
 import { MealCard } from "@/components/nutrition/MealCard";
 import {
@@ -49,31 +52,22 @@ export default async function NutritionDayPage({
   const pattern = getDayPattern(date);
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <Eyebrow>Ernährung · Tag</Eyebrow>
-          <h1 className="text-[1.25rem] sm:text-[1.5rem] md:text-[1.625rem] font-semibold tracking-[-0.02em]">
-            {fmtDayHeading(date)}
-          </h1>
-          <span className="text-caption text-subtle num-mono">{date}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/nutrition"
-            className="text-caption hover:text-[var(--color-text)] transition-colors"
-          >
-            ← Übersicht
-          </Link>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Ernährung · Tag"
+        title={fmtDayHeading(date)}
+        sub={<span className="num-mono text-subtle">{date}</span>}
+        back={{ href: "/nutrition", label: "Übersicht" }}
+        trailing={
           <Link
             href="/nutrition/log"
-            className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-pill)] bg-[var(--color-nutrition)] text-[var(--color-bg)] text-caption font-medium hover:brightness-110"
+            className="inline-flex items-center gap-2 px-3 h-9 rounded-[var(--radius-pill)] bg-[var(--color-nutrition)] text-[var(--color-bg)] text-caption font-medium transition-[filter] hover:brightness-110"
           >
             <Glyph name="Camera" size={14} />
             Mahlzeit
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       <FadeRise>
         <Card glow="nutrition">
@@ -132,20 +126,19 @@ export default async function NutritionDayPage({
             <CardBody className="p-5 flex flex-col gap-2">
               {pattern.events.map((ev, i) => (
                 <div key={i} className="flex items-start gap-3 py-1.5">
-                  <span className="grid place-items-center size-8 shrink-0 rounded-xl bg-[hsl(346_40%_18%)] border border-[hsl(346_36%_28%)] text-[var(--color-nutrition)]">
-                    <Glyph
-                      name={
-                        ev.kind === "drink_round"
-                          ? "Wine"
-                          : ev.kind === "snacking"
-                          ? "Croissant"
-                          : ev.kind === "multi_course"
-                          ? "Utensils"
-                          : "Sunrise"
-                      }
-                      size={14}
-                    />
-                  </span>
+                  <IconBadge
+                    tone="nutrition"
+                    size="sm"
+                    icon={
+                      ev.kind === "drink_round"
+                        ? "Wine"
+                        : ev.kind === "snacking"
+                        ? "Croissant"
+                        : ev.kind === "multi_course"
+                        ? "Utensils"
+                        : "Sunrise"
+                    }
+                  />
                   <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                     <span className="text-[0.875rem]">{ev.summary}</span>
                     <span className="num-mono text-caption text-subtle">
@@ -157,9 +150,7 @@ export default async function NutritionDayPage({
               ))}
               {pattern.flags.length > 0 && (
                 <div className="flex items-start gap-3 py-1.5 pt-3 border-t border-[var(--color-border)]">
-                  <span className="grid place-items-center size-8 shrink-0 rounded-xl bg-[hsl(28_60%_18%)] border border-[hsl(28_56%_28%)] text-[var(--color-tier-s2)]">
-                    <Glyph name="AlertTriangle" size={14} />
-                  </span>
+                  <IconBadge tone="stress" size="sm" icon="AlertTriangle" />
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <span className="text-[0.875rem]">Hinweise des Tages-Clusters</span>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -302,7 +293,13 @@ function ClusterRow({
       <div className="flex flex-col gap-1">
         {position === "start" && (
           <div className="flex items-center gap-2 pl-1">
-            <span className="inline-flex items-center gap-1.5 px-2 h-5 rounded-[var(--radius-pill)] bg-[hsl(346_40%_18%)] ring-1 ring-inset ring-[hsl(346_36%_28%)] text-[0.625rem] uppercase tracking-[0.16em] text-[var(--color-nutrition)] font-medium">
+            <span
+              className="inline-flex items-center gap-1.5 px-2 h-5 rounded-[var(--radius-pill)] ring-1 ring-inset text-[0.625rem] uppercase tracking-[0.16em] text-[var(--color-nutrition)] font-medium"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-nutrition) 16%, transparent)",
+                "--tw-ring-color": "color-mix(in srgb, var(--color-nutrition) 32%, transparent)",
+              } as React.CSSProperties}
+            >
               <Glyph
                 name={
                   cluster.kind === "drink_round"
@@ -351,9 +348,10 @@ function MacroSplitGrid({
           <div key={m.key} className="flex flex-col gap-1">
             <Eyebrow>{m.label}</Eyebrow>
             <div className="flex items-baseline gap-1">
-              <span className="num text-[1.5rem] font-semibold tracking-[-0.02em]">
-                {Math.round(actual)}
-              </span>
+              <NumberTicker
+                value={Math.round(actual)}
+                className="num text-[1.5rem] font-semibold tracking-[-0.02em]"
+              />
               <span className="text-subtle text-[0.625rem] num-mono">{m.unit}</span>
             </div>
             <div className="flex items-center gap-1.5 text-caption">
@@ -418,7 +416,7 @@ function MicroBars({
                   background: over
                     ? "linear-gradient(90deg, var(--color-nutrition), var(--color-nutrition-2))"
                     : ratio >= 0.5
-                    ? "linear-gradient(90deg, hsl(346 36% 36%), var(--color-nutrition))"
+                    ? "linear-gradient(90deg, color-mix(in srgb, var(--color-nutrition) 55%, var(--color-bg)), var(--color-nutrition))"
                     : "var(--color-band-down)",
                 }}
               />

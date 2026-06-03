@@ -5,8 +5,7 @@ import { useMemo, useState } from "react";
 
 import { Section } from "@/components/ui/section";
 import { Card, CardBody } from "@/components/ui/card";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { Pill } from "@/components/ui/pill";
+import { PageHeader } from "@/components/ui/page-header";
 import { FadeRise } from "@/components/motion/fade-rise";
 import { MicroHeatmap, type HeatmapRow } from "@/components/nutrition/MicroHeatmap";
 import { effectiveTarget } from "@/lib/nutrition/helpers";
@@ -90,34 +89,31 @@ export default function TrendsView({ today, meals, weekStrip, targets }: TrendsV
   const scatterMax = Math.max(1, ...scatter.map((s) => s.kcal));
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Trends</Eyebrow>
-          <h1 className="text-hero">Wo bewegst du dich</h1>
-          <p className="text-body-sm text-muted max-w-[60ch]">
-            Gleitende Fenster. Lücken sind Lücken — keine Mahlzeit, kein Wert. Bewusst keine
-            Glättung über Tagesgrenzen hinweg.
-          </p>
-        </div>
-        <div className="inline-flex items-center gap-1 p-0.5 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)]">
-          {([14, 30, 90] as const).map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => setWindow(w)}
-              className={cn(
-                "px-3 h-8 rounded-[var(--radius-pill)] text-caption num-mono transition-colors",
-                window === w
-                  ? "bg-[var(--color-nutrition)] text-[var(--color-bg)] font-medium"
-                  : "text-muted hover:text-[var(--color-text)]",
-              )}
-            >
-              {w} d
-            </button>
-          ))}
-        </div>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Trends"
+        title="Wo bewegst du dich"
+        sub="Gleitende Fenster. Lücken sind Lücken — keine Mahlzeit, kein Wert. Bewusst keine Glättung über Tagesgrenzen hinweg."
+        trailing={
+          <div className="inline-flex items-center gap-1 p-0.5 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)]">
+            {([14, 30, 90] as const).map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setWindow(w)}
+                className={cn(
+                  "px-3 h-8 rounded-[var(--radius-pill)] text-caption num-mono transition-colors",
+                  window === w
+                    ? "bg-[var(--color-nutrition)] text-[var(--color-bg)] font-medium"
+                    : "text-muted hover:text-[var(--color-text)]",
+                )}
+              >
+                {w} d
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       <FadeRise>
         <Section eyebrow={`${window} Tage`} title="Makro-Stack">
@@ -284,7 +280,7 @@ function ScatterChart({
               height: size,
               background: colorFor(p.kind),
               opacity: 0.85,
-              boxShadow: "0 4px 12px -4px hsl(0 0% 0% / 0.6)",
+              boxShadow: "var(--shadow-card)",
             }}
             title={`${p.kind} · ${Math.round(p.kcal)} kcal @ ${p.hour.toFixed(1)}h`}
           />
@@ -324,6 +320,3 @@ function addFacts(a: NutritionFacts, b: NutritionFacts): NutritionFacts {
   }
   return out;
 }
-
-// Pill is imported but used below
-void Pill;

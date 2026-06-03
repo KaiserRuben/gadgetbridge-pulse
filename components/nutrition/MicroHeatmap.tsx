@@ -74,7 +74,7 @@ export function MicroHeatmap({
             className="block h-full"
             style={{
               background:
-                "linear-gradient(90deg, hsl(346 24% 18%), hsl(346 36% 36%), hsl(346 48% 56%), var(--color-nutrition))",
+                "linear-gradient(90deg, color-mix(in srgb, var(--color-nutrition) 22%, var(--color-bg)), color-mix(in srgb, var(--color-nutrition) 55%, var(--color-bg)), color-mix(in srgb, var(--color-nutrition) 80%, var(--color-bg)), var(--color-nutrition))",
             }}
           />
         </span>
@@ -97,10 +97,12 @@ function Cell({ ratio, label }: { ratio: number | null; label: string }) {
     );
   }
   const r = Math.max(0, Math.min(1.2, ratio));
-  // Map 0..1 → l 18..56, sat 24..48; >1 caps at full accent.
-  const sat = Math.round(24 + Math.min(1, r) * 24);
-  const lit = Math.round(18 + Math.min(1, r) * 38);
-  const bg = r >= 1 ? "var(--color-nutrition)" : `hsl(346 ${sat}% ${lit}%)`;
+  // Map 0..1 → accent-mix 22..100%; >=1 caps at the full nutrition accent.
+  const mix = Math.round(22 + Math.min(1, r) * 78);
+  const bg =
+    r >= 1
+      ? "var(--color-nutrition)"
+      : `color-mix(in srgb, var(--color-nutrition) ${mix}%, var(--color-bg))`;
   return (
     <span
       className="aspect-square w-full rounded-md border border-[var(--color-border)] grid place-items-center"
